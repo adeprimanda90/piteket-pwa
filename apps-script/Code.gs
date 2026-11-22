@@ -1,16 +1,5 @@
 /**
- * PITEKET — Google Apps Script Bridge
- * 1) Menambahkan menu "Piteket CMS" di Google Sheet untuk 1-klik publish tab data ke GitHub (JSON).
- * 2) Menyediakan Web App endpoint (doPost) untuk menerima "Masukan_Keluarga" dari PWA.
- *
- * Cara pasang:
- * - Buka Google Sheet "Piteket — Master Database & Masukan Keluarga"
- * - Klik Extensions > Apps Script
- * - Tempel seluruh kode ini, simpan, lalu jalankan setupProperties() sekali atau isi Script Properties:
- *   GITHUB_TOKEN = Personal Access Token (fine-grained, repo Contents: Read & Write)
- *   GITHUB_OWNER = adeprimanda90
- *   GITHUB_REPO  = piteket-pwa
- *   GITHUB_BRANCH = main
+ * PITEKET — Google Apps Script Bridge (v2 — termasuk Catatan_Dresta 10 Wilayah)
  */
 
 const TAB_TO_FILE = {
@@ -18,7 +7,8 @@ const TAB_TO_FILE = {
   'Sthiti': 'data/sthiti.json',
   'Pralina': 'data/pralina.json',
   'Dewasa_Ayu': 'data/dewasa-ayu.json',
-  'Glosarium_Aksara': 'data/glosarium-aksara.json'
+  'Glosarium_Aksara': 'data/glosarium-aksara.json',
+  'Catatan_Dresta': 'data/catatan-dresta.json'
 };
 
 function onOpen() {
@@ -112,10 +102,6 @@ function pushFileToGitHub(owner, repo, branch, path, content, token, message) {
   }
 }
 
-/**
- * Web App Endpoint: Menerima masukan/koreksi keluarga dari PWA -> simpan ke tab Masukan_Keluarga
- * Deploy: Klik Deploy > New deployment > Web app > Execute as: Me > Who has access: Anyone
- */
 function doPost(e) {
   try {
     const data = JSON.parse(e.postData.contents);

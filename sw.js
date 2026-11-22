@@ -1,4 +1,4 @@
-const CACHE_NAME = 'piteket-pwa-v2';
+const CACHE_NAME = 'piteket-pwa-v3';
 const CORE_ASSETS = [
   './',
   './index.html',
@@ -12,7 +12,8 @@ const CORE_ASSETS = [
   './data/sthiti.json',
   './data/pralina.json',
   './data/dewasa-ayu.json',
-  './data/glosarium-aksara.json'
+  './data/glosarium-aksara.json',
+  './data/catatan-dresta.json'
 ];
 
 self.addEventListener('install', (event) => {

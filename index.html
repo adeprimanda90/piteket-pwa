@@ -11,7 +11,6 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Balinese:wght@400;600&family=Noto+Serif+Balinese&family=Playfair+Display:wght@600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="./css/styles.css" />
-  <!-- Kalender Bali Open Source Engine (otomatis fallback offline jika tidak ada sinyal) -->
   <script defer src="https://unpkg.com/balinese-date-js-lib/dist/balinese-date-js-lib.min.js"></script>
 </head>
 <body>
@@ -21,8 +20,8 @@
         <div>
           <span class="brand-aksara aksara">ᬧᬶᬢᭂᬓᭂᬢ᭄</span>
           <h1 class="brand-title">Piteket</h1>
-          <p class="brand-sub">Teman belajar hidup sebagai orang Bali — merangkum siklus <strong>Tri Kona</strong> (Utpatti · Sthiti · Pralina), Panca Yadnya, dan Kalender Bali.</p>
-          <span class="region-pill" id="region-label">Kawitan Karangasem · Domisili Denpasar & Badung</span>
+          <p class="brand-sub">Teman belajar hidup sebagai orang Bali — merangkum siklus <strong>Tri Kona</strong> (Utpatti · Sthiti · Pralina), Panca Yadnya, Dresta 10 Wilayah, dan Kalender Bali.</p>
+          <span class="region-pill" id="region-label">Domisili: Denpasar · Kawitan: Karangasem</span>
         </div>
       </div>
     </div>
@@ -31,6 +30,23 @@
   <main class="container">
     <section class="humility-banner" aria-label="Catatan Kerendahan Hati">
       <strong>Catatan Belajar Keluarga (Nunas Piteket):</strong> Aplikasi ini bukan kitab aturan baku adat Bali. Setiap desa adat memiliki <em>Desa Kala Patra</em> dan <em>awig-awig</em> masing-masing. Masukan dan koreksi dari orang tua, panglingsir, serta Jero Mangku sangat kami harapkan lewat tombol <strong>Beri Piteket</strong> di setiap topik.
+    </section>
+
+    <section class="dresta-switcher" aria-label="Profil Dresta Saya">
+      <div>
+        <div class="dresta-switcher-title">Profil Desa Kala Patra Anda</div>
+        <div class="dresta-switcher-sub">Pilih domisili & daerah asal kawitan untuk menyesuaikan catatan adat di setiap panduan.</div>
+      </div>
+      <div class="dresta-selects">
+        <div class="dresta-field">
+          <label for="select-domisili">Domisili Sekarang</label>
+          <select id="select-domisili"></select>
+        </div>
+        <div class="dresta-field">
+          <label for="select-kawitan">Asal Kawitan / Leluhur</label>
+          <select id="select-kawitan"></select>
+        </div>
+      </div>
     </section>
 
     <section class="calendar-card" aria-label="Kalender Bali">
@@ -65,12 +81,13 @@
 
     <nav class="tabs" role="tablist">
       <button class="tab-btn active" data-tab="panduan">Siklus Tri Kona</button>
+      <button class="tab-btn" data-tab="dresta">Catatan Dresta (10 Wilayah)</button>
       <button class="tab-btn" data-tab="dewasa">Dewasa Ayu & Wariga</button>
       <button class="tab-btn" data-tab="aksara">Glosarium Aksara Bali</button>
     </nav>
 
     <div class="controls-bar">
-      <input type="search" id="search-input" class="search-input" placeholder="Cari topik: bayi, cuntaka, melayat, pawiwahan, melukat..." />
+      <input type="search" id="search-input" class="search-input" placeholder="Cari topik: ngaben, nyekah, cuntaka, melayat, bayi, pawiwahan..." />
       <select id="cycle-filter" class="filter-select" aria-label="Filter Siklus Tri Kona">
         <option value="ALL">Semua Siklus (Tri Kona)</option>
         <option value="Utpatti">Utpatti (Lahir · Brahma)</option>
@@ -82,7 +99,6 @@
     <section id="content-area" aria-live="polite"></section>
   </main>
 
-  <!-- Detail Guide Modal -->
   <div class="modal-backdrop" id="detail-modal" role="dialog" aria-modal="true">
     <div class="modal-box">
       <div class="modal-header">
@@ -96,7 +112,6 @@
     </div>
   </div>
 
-  <!-- Family Feedback Modal -->
   <div class="modal-backdrop" id="feedback-modal" role="dialog" aria-modal="true">
     <div class="modal-box">
       <div class="modal-header">
@@ -112,25 +127,21 @@
           <input id="fb-name" type="text" placeholder="Contoh: Ajik / Ibu / Bli Made" required />
         </div>
         <div class="form-group">
-          <label for="fb-relation">Hubungan Keluarga</label>
+          <label for="fb-relation">Hubungan Keluarga / Peran</label>
           <select id="fb-relation">
             <option value="Orang Tua / Panglingsir">Orang Tua / Panglingsir</option>
             <option value="Saudara / Semeton">Saudara / Semeton</option>
             <option value="Jero Mangku / Tetua Adat">Jero Mangku / Tetua Adat</option>
-            <option value="Lainnya">Lainnya</option>
+            <option value="Warga / Pengguna Umum">Warga / Pengguna Umum</option>
           </select>
         </div>
         <div class="form-group">
-          <label for="fb-dresta">Konteks Dresta / Daerah</label>
-          <select id="fb-dresta">
-            <option value="Denpasar / Badung">Denpasar / Badung</option>
-            <option value="Karangasem (Kawitan)">Karangasem (Kawitan)</option>
-            <option value="Keduanya / Umum">Keduanya / Umum</option>
-          </select>
+          <label for="fb-dresta">Wilayah / Konteks Dresta</label>
+          <select id="fb-dresta"></select>
         </div>
         <div class="form-group">
           <label for="fb-text">Piteket, Koreksi, atau Tambahan Catatan</label>
-          <textarea id="fb-text" rows="4" placeholder="Tulis koreksi banten, lama cuntaka, atau kebiasaan di keluarga kita..." required></textarea>
+          <textarea id="fb-text" rows="4" placeholder="Tulis koreksi banten, lama cuntaka, atau kebiasaan di desa adat / soroh Anda..." required></textarea>
         </div>
         <button type="submit" class="btn btn-primary" style="width:100%;">Kirim Piteket</button>
       </form>
@@ -140,7 +151,7 @@
   <div class="toast" id="toast"></div>
 
   <footer>
-    Piteket · Catatan Belajar Hidup Orang Bali (Phase 1) · Sumber kalender oleh <a href="https://github.com/peradnya/balinese-date-js-lib" target="_blank" rel="noopener">balinese-date-js-lib</a> · Aksara oleh <a href="https://fonts.google.com/noto/specimen/Noto+Serif+Balinese" target="_blank" rel="noopener">Noto Balinese</a>.
+    Piteket · Catatan Belajar Hidup Orang Bali · Sumber kalender oleh <a href="https://github.com/peradnya/balinese-date-js-lib" target="_blank" rel="noopener">balinese-date-js-lib</a> · Aksara oleh <a href="https://fonts.google.com/noto/specimen/Noto+Serif+Balinese" target="_blank" rel="noopener">Noto Balinese</a>.
   </footer>
 
   <script type="module" src="./js/app.js"></script>

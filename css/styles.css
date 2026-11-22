@@ -454,3 +454,78 @@ footer {
   font-size: 0.84rem;
   border-top: 1px solid var(--border);
 }
+
+/* Profil Dresta Saya (Domisili + Kawitan Switcher) */
+.dresta-switcher {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 18px;
+  box-shadow: var(--shadow);
+  margin: 16px 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.dresta-switcher-title {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.dresta-switcher-sub {
+  font-size: 0.78rem;
+  color: var(--ink-muted);
+}
+
+.dresta-selects {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.dresta-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.dresta-field label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-muted);
+  font-weight: 600;
+}
+
+.dresta-field select {
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.dresta-empty {
+  background: #FFF9EE;
+  border: 1px dashed #D8B884;
+  border-radius: 10px;
+  padding: 12px;
+  font-size: 0.86rem;
+  color: #5C4523;
+}
+
+.dresta-source-link {
+  display: inline-block;
+  margin-top: 6px;
+  font-size: 0.78rem;
+  color: var(--primary);
+  text-decoration: underline;
+}
