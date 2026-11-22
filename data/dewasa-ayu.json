@@ -6,9 +6,9 @@
     "sifat": "Ayu",
     "arti_ringkas": "Hari baik berdasarkan perpaduan Wewaran, Wuku, Penanggal/Pangelong, dan Sasih dalam ilmu Wariga Bali.",
     "cocok_untuk": "Memulai kegiatan penting, pekerjaan, dan yadnya sesuai kecocokan jenis dewanya.",
-    "hindari_untuk": "Menganggap satu hari 'baik untuk segala hal' tanpa mengecek pantangan spesifik (Ala Ayuning Dewasa).",
+    "hindari_untuk": "Menganggap satu hari \"baik untuk segala hal\" tanpa mengecek pantangan spesifik (Ala Ayuning Dewasa).",
     "catatan_wariga": "Perhitungan kalender dasar bersifat matematis, namun penetapan Dewasa Ayu untuk upacara besar (Pawiwahan, Ngaben, Mlaspas) wajib dikonsultasikan ke Sulinggih atau ahli Wariga.",
-    "sumber_referensi": "https://github.com/SHA888/balinese-calendar",
+    "sumber_referensi": "https://github.com/SHA888/balinese-calendar | https://github.com/peradnya/balinese-date-js-lib",
     "status_verifikasi": "Terverifikasi Keluarga"
   },
   {
@@ -43,7 +43,7 @@
     "arti_ringkas": "Indikator hari kurang baik untuk kegiatan tertentu yang berkaitan dengan perjalanan jauh, memulai proyek, atau upacara tertentu.",
     "cocok_untuk": "Evaluasi diri, pekerjaan rutin biasa, dan tidak terburu-buru mengambil keputusan besar.",
     "hindari_untuk": "Memulai upacara besar Manusa Yadnya atau memindahkan benda sakral tanpa petunjuk Sulinggih.",
-    "catatan_wariga": "Di Bali, hari 'Ala' bukan berarti sial total, melainkan sinyal kehati-hatian agar memilih waktu yang lebih selaras.",
+    "catatan_wariga": "Di Bali, hari \"Ala\" bukan berarti sial total, melainkan sinyal kehati-hatian agar memilih waktu yang lebih selaras.",
     "sumber_referensi": "https://github.com/SHA888/balinese-calendar",
     "status_verifikasi": "Menunggu Review Tetua"
   },
@@ -56,7 +56,7 @@
     "cocok_untuk": "Sembahyang di Merajan/Pura, menghaturkan canang/pejati, refleksi batin, dan melukat.",
     "hindari_untuk": "Mengabaikan kesucian pikiran dan ucapan; hindari konflik rumah tangga.",
     "catatan_wariga": "Sangat mudah diikuti oleh keluarga muda sebagai jangkar ritme spiritual setiap dua minggu.",
-    "sumber_referensi": "https://journal.mpukuturan.ac.id/index.php/swarawidya/article/download/615/386/1002",
+    "sumber_referensi": "https://github.com/peradnya/balinese-date-js-lib | https://journal.mpukuturan.ac.id/index.php/swarawidya/article/download/615/386/1002",
     "status_verifikasi": "Terverifikasi Keluarga"
   }
 ]
