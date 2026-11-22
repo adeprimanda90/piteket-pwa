@@ -78,5 +78,225 @@
     "arti_indonesia": "Tiga penyebab keharmonisan: Parahyangan, Pawongan, Palemahan",
     "contoh_penggunaan": "\"Menyama braya adalah wujud nyata Pawongan.\"",
     "status_verifikasi": "Terverifikasi Keluarga"
+  },
+  {
+    "id": "gls-09",
+    "istilah_bali": "Yadnya",
+    "aksara_bali_unicode": "ᬬᬚ᭄ᬜ",
+    "pelafalan": "Yad-nya",
+    "kategori": "Filosofi",
+    "arti_indonesia": "Persembahan atau pengorbanan suci yang tulus ikhlas tanpa pamrih.",
+    "contoh_penggunaan": "Setiap yadnya dilandasi ketulusan hati, bukan besar kecilnya biaya.",
+    "status_verifikasi": "Menunggu Review Tetua"
+  },
+  {
+    "id": "gls-10",
+    "istilah_bali": "Panca Yadnya",
+    "aksara_bali_unicode": "ᬧᬜ᭄ᬘᬬᬚ᭄ᬜ",
+    "pelafalan": "Pan-ca Yad-nya",
+    "kategori": "Filosofi",
+    "arti_indonesia": "Lima jenis yadnya suci: Dewa, Pitra, Rsi, Manusa, dan Bhuta Yadnya.",
+    "contoh_penggunaan": "Upacara Otonan dan Pawiwahan termasuk dalam Manusa Yadnya.",
+    "status_verifikasi": "Menunggu Review Tetua"
+  },
+  {
+    "id": "gls-11",
+    "istilah_bali": "Banten",
+    "aksara_bali_unicode": "ᬩᬦ᭄ᬢᭂᬦ᭄",
+    "pelafalan": "Ban-ten",
+    "kategori": "Upakara",
+    "arti_indonesia": "Sarana persembahan simbolis wujud rasa syukur kepada Ida Sang Hyang Widhi Wasa.",
+    "contoh_penggunaan": "Ibu sedang menanding banten untuk Purnama besok.",
+    "status_verifikasi": "Menunggu Review Tetua"
+  },
+  {
+    "id": "gls-12",
+    "istilah_bali": "Canang Sari",
+    "aksara_bali_unicode": "ᬘᬦᬂᬲᬭᬶ",
+    "pelafalan": "Ca-nang Sa-ri",
+    "kategori": "Upakara",
+    "arti_indonesia": "Persembahan harian paling dasar melambangkan ketulusan hati dan keseimbangan alam.",
+    "contoh_penggunaan": "Setiap pagi keluarga menghaturkan Canang Sari di pelangkiran dan merajan.",
+    "status_verifikasi": "Menunggu Review Tetua"
+  },
+  {
+    "id": "gls-13",
+    "istilah_bali": "Pejati",
+    "aksara_bali_unicode": "ᬧᭂᬚᬢᬶ",
+    "pelafalan": "Pe-ja-ti",
+    "kategori": "Upakara",
+    "arti_indonesia": "Rangkaian banten utama (Daksina, Peras, Penyeneng, Tipat Kelan/Ajuman) sebagai tanda kesungguhan saat sembahyang atau mepiuning.",
+    "contoh_penggunaan": "Sebelum karya dimulai, kami menghaturkan banten Pejati di Sanggah Kemulan.",
+    "status_verifikasi": "Menunggu Review Tetua"
+  },
+  {
+    "id": "gls-14",
+    "istilah_bali": "Tirta",
+    "aksara_bali_unicode": "ᬢᬶᬃᬣ",
+    "pelafalan": "Tir-ta",
+    "kategori": "Upakara",
+    "arti_indonesia": "Air suci yang telah disucikan melalui doa dan mantra oleh Sulinggih atau Pemangku.",
+    "contoh_penggunaan": "Setelah selesai sembahyang, umat nunas tirta dan bija.",
+    "status_verifikasi": "Menunggu Review Tetua"
+  },
+  {
+    "id": "gls-15",
+    "istilah_bali": "Sanggah / Merajan",
+    "aksara_bali_unicode": "ᬲᬂᬕᬄ",
+    "pelafalan": "Sang-gah",
+    "kategori": "Parhyangan",
+    "arti_indonesia": "Tempat suci keluarga di pekarangan rumah Hindu Bali untuk memuja Tuhan dan leluhur.",
+    "contoh_penggunaan": "Piodalan di Sanggah keluarga jatuh pada Buda Kliwon Sinta.",
+    "status_verifikasi": "Menunggu Review Tetua"
+  },
+  {
+    "id": "gls-16",
+    "istilah_bali": "Kawitan",
+    "aksara_bali_unicode": "ᬓᬯᬶᬢᬦ᭄",
+    "pelafalan": "Ka-wi-tan",
+    "kategori": "Parhyangan",
+    "arti_indonesia": "Asal-usul garis keturunan leluhur atau Pura asal keluarga besar (soroh/dadia).",
+    "contoh_penggunaan": "Saat odalan besar, keluarga dari Denpasar pulang tangkil ke Pura Kawitan di Karangasem.",
+    "status_verifikasi": "Menunggu Review Tetua"
+  },
+  {
+    "id": "gls-17",
+    "istilah_bali": "Ngayah",
+    "aksara_bali_unicode": "ᬗᬬᬄ",
+    "pelafalan": "Nga-yah",
+    "kategori": "Etika & Sosial",
+    "arti_indonesia": "Kerja bakti dan pengabdian tulus tanpa pamrih di pura, banjar, atau upacara adat.",
+    "contoh_penggunaan": "Minggu pagi krama banjar berkumpul untuk ngayah membersihkan pura.",
+    "status_verifikasi": "Menunggu Review Tetua"
+  },
+  {
+    "id": "gls-18",
+    "istilah_bali": "Menyama Braya",
+    "aksara_bali_unicode": "ᬫᭂᬜᬫᬩ᭄ᬭᬬ",
+    "pelafalan": "Me-nya-ma Bra-ya",
+    "kategori": "Etika & Sosial",
+    "arti_indonesia": "Hidup rukun, saling menolong, dan memandang sesama sebagai saudara.",
+    "contoh_penggunaan": "Semangat menyama braya terasa kuat saat tetangga menggelar karya.",
+    "status_verifikasi": "Menunggu Review Tetua"
+  },
+  {
+    "id": "gls-19",
+    "istilah_bali": "Awig-awig",
+    "aksara_bali_unicode": "ᬅᬯᬶᬕ᭄ᬅᬯᬶᬕ᭄",
+    "pelafalan": "A-wig-a-wig",
+    "kategori": "Adat & Prinsip",
+    "arti_indonesia": "Aturan hukum adat tertulis maupun tidak tertulis yang berlaku di suatu Desa Adat atau Banjar.",
+    "contoh_penggunaan": "Lama masa cuntaka di lingkungan kita mengikuti awig-awig desa adat setempat.",
+    "status_verifikasi": "Menunggu Review Tetua"
+  },
+  {
+    "id": "gls-20",
+    "istilah_bali": "Mepiuning",
+    "aksara_bali_unicode": "ᬫᭂᬧᬶᬉᬦᬶᬂ",
+    "pelafalan": "Me-pi-u-ning",
+    "kategori": "Upacara",
+    "arti_indonesia": "Memaklumatkan atau melaporkan rencana kegiatan/upacara secara niskala di sanggah atau pura.",
+    "contoh_penggunaan": "Sebelum pindah rumah, keluarga mepiuning dulu di merajan asal.",
+    "status_verifikasi": "Menunggu Review Tetua"
+  },
+  {
+    "id": "gls-21",
+    "istilah_bali": "Otonan",
+    "aksara_bali_unicode": "ᬑᬢᭀᬦᬦ᭄",
+    "pelafalan": "O-to-nan",
+    "kategori": "Utpatti",
+    "arti_indonesia": "Upacara peringatan hari lahir berdasarkan kalender Pawukon Bali setiap 210 hari sekali.",
+    "contoh_penggunaan": "Otonan pertama bayi dirayakan saat berumur 210 hari.",
+    "status_verifikasi": "Menunggu Review Tetua"
+  },
+  {
+    "id": "gls-22",
+    "istilah_bali": "Mepandes / Metatah",
+    "aksara_bali_unicode": "ᬫᭂᬧᬦ᭄ᬤᭂᬲ᭄",
+    "pelafalan": "Me-pan-des",
+    "kategori": "Utpatti",
+    "arti_indonesia": "Upacara potong gigi (mengasah enam gigi atas) simbol pengendalian Sad Ripu saat menginjak dewasa.",
+    "contoh_penggunaan": "Adik akan melaksanakan upacara Mepandes saat liburan sekolah nanti.",
+    "status_verifikasi": "Menunggu Review Tetua"
+  },
+  {
+    "id": "gls-23",
+    "istilah_bali": "Pawiwahan",
+    "aksara_bali_unicode": "ᬧᬯᬶᬯᬳᬦ᭄",
+    "pelafalan": "Pa-wi-wa-han",
+    "kategori": "Sthiti",
+    "arti_indonesia": "Upacara pernikahan suci umat Hindu Bali memasuki jenjang Grehasta Asrama.",
+    "contoh_penggunaan": "Rangkaian Pawiwahan diawali dengan memadik dan mepamit.",
+    "status_verifikasi": "Menunggu Review Tetua"
+  },
+  {
+    "id": "gls-24",
+    "istilah_bali": "Mlaspas",
+    "aksara_bali_unicode": "ᬫᭂᬮᬲ᭄ᬧᬲ᭄",
+    "pelafalan": "Me-las-pas",
+    "kategori": "Sthiti",
+    "arti_indonesia": "Upacara penyucian dan peresmian bangunan atau rumah baru sebelum ditempati.",
+    "contoh_penggunaan": "Sebelum menempati rumah baru, keluarga menggelar Mecaru dan Mlaspas.",
+    "status_verifikasi": "Menunggu Review Tetua"
+  },
+  {
+    "id": "gls-25",
+    "istilah_bali": "Mecaru",
+    "aksara_bali_unicode": "ᬫᭂᬘᬭᬸ",
+    "pelafalan": "Me-ca-ru",
+    "kategori": "Sthiti",
+    "arti_indonesia": "Upacara Bhuta Yadnya untuk menyelaraskan dan menyucikan unsur alam di pekarangan atau wilayah.",
+    "contoh_penggunaan": "Mecaru dilaksanakan sebelum Mlaspas agar pekarangan rumah terasa teduh.",
+    "status_verifikasi": "Menunggu Review Tetua"
+  },
+  {
+    "id": "gls-26",
+    "istilah_bali": "Melukat",
+    "aksara_bali_unicode": "ᬫᭂᬮᬸᬓᬢ᭄",
+    "pelafalan": "Me-lu-kat",
+    "kategori": "Upacara",
+    "arti_indonesia": "Upacara pembersihan diri secara lahir dan batin menggunakan air suci (tirta penglukatan).",
+    "contoh_penggunaan": "Pada hari Purnama, banyak umat melukat untuk menyegarkan pikiran dan batin.",
+    "status_verifikasi": "Menunggu Review Tetua"
+  },
+  {
+    "id": "gls-27",
+    "istilah_bali": "Ngaben",
+    "aksara_bali_unicode": "ᬗᬩᬾᬦ᭄",
+    "pelafalan": "Nga-ben",
+    "kategori": "Pralina",
+    "arti_indonesia": "Upacara Pitra Yadnya untuk mengembalikan unsur Panca Maha Bhuta ke alam dan menyucikan Atman.",
+    "contoh_penggunaan": "Ngaben massal di desa adat membantu meringankan biaya dan mempererat gotong royong.",
+    "status_verifikasi": "Menunggu Review Tetua"
+  },
+  {
+    "id": "gls-28",
+    "istilah_bali": "Nyekah / Atma Wedana",
+    "aksara_bali_unicode": "ᬜᭂᬓᬄ",
+    "pelafalan": "Nye-kah",
+    "kategori": "Pralina",
+    "arti_indonesia": "Upacara penyucian lanjutan Atman pasca-Ngaben sebelum distanakan di Sanggah Kemulan.",
+    "contoh_penggunaan": "Setelah Ngaben, keluarga menjadwalkan upacara Nyekah sesuai arahan Sulinggih.",
+    "status_verifikasi": "Menunggu Review Tetua"
+  },
+  {
+    "id": "gls-29",
+    "istilah_bali": "Purnama & Tilem",
+    "aksara_bali_unicode": "ᬧᬸᬃᬡᬫ",
+    "pelafalan": "Pur-na-ma",
+    "kategori": "Wariga",
+    "arti_indonesia": "Hari suci bulan penuh (Purnama) dan bulan mati (Tilem) setiap 15 hari dalam kalender Saka Bali.",
+    "contoh_penggunaan": "Purnama dan Tilem menjadi pengingat rutin untuk sembahyang bersama di merajan.",
+    "status_verifikasi": "Menunggu Review Tetua"
+  },
+  {
+    "id": "gls-30",
+    "istilah_bali": "Panglingsir",
+    "aksara_bali_unicode": "ᬧᬂᬮᬶᬂᬲᬶᬃ",
+    "pelafalan": "Pang-ling-sir",
+    "kategori": "Etika & Bahasa",
+    "arti_indonesia": "Tetua atau orang yang dituakan dalam keluarga, dadia, atau desa adat sebagai tempat memohon piteket.",
+    "contoh_penggunaan": "Sebelum menentukan tata cara karya, kami selalu bertanya kepada panglingsir keluarga.",
+    "status_verifikasi": "Menunggu Review Tetua"
   }
 ]
