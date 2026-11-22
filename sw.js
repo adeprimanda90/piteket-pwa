@@ -1,9 +1,10 @@
-const CACHE_NAME = 'piteket-pwa-v6';
+const CACHE_NAME = 'piteket-pwa-v7';
 const STATIC_ASSETS = [
   '/',
   '/css/styles.css',
   '/js/app.js',
   '/js/calendar-engine.js',
+  '/js/dewasa-engine.js',
   '/js/ics-export.js',
   '/js/checklists.js',
   '/manifest.json',

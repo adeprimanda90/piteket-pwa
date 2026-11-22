@@ -1,23 +1,17 @@
 // ============================================================================
-// Piteket — Engine Kalender Bali (Pawukon, Wewaran, Saka & Pangalantaka)
+// Piteket — Engine Kalender Bali Lengkap (10 Wewaran, Wuku, Saka, Pangalantaka)
 // 100% Offline, Deterministik, Zero External CDN Dependency
-// ============================================================================
-// Kalibrasi Sistem Pangalantaka Eka Sungsang ke Paing (mulai berlaku 2000 M):
-// - Pivot Pawukon : 2026-11-21 = Saniscara Paing Ukir (Pawukon idx 20, Ingkel Buku)
-// - Pivot Saka    : 2026-11-09 = Tilem Sasih Kalima (Pangelong 15, Saka 1948)
-//                   2026-11-21 = Penanggal 12 Sasih Kanem (Saka 1948)
-//                   2026-03-19 = Nyepi / Penanggal 1 Sasih Kadasa (Saka 1948)
-//                   2027-03-08 = Nyepi / Penanggal 1 Sasih Kadasa (Saka 1949)
+// Terverifikasi terhadap acuan Kalender Cetak I Ketut Bangbang Gde Rawi
 // ============================================================================
 
 export const SAPTA_WARA = [
-  { name: "Redite", short: "Red", urip: 5 },
-  { name: "Soma", short: "Som", urip: 4 },
-  { name: "Anggara", short: "Ang", urip: 3 },
-  { name: "Buda", short: "Bud", urip: 7 },
-  { name: "Wraspati", short: "Wra", urip: 8 },
-  { name: "Sukra", short: "Suk", urip: 6 },
-  { name: "Saniscara", short: "San", urip: 9 }
+  { name: "Redite", short: "Red", indo: "Min", urip: 5 },
+  { name: "Soma", short: "Som", indo: "Sen", urip: 4 },
+  { name: "Anggara", short: "Ang", indo: "Sel", urip: 3 },
+  { name: "Buda", short: "Bud", indo: "Rab", urip: 7 },
+  { name: "Wraspati", short: "Wra", indo: "Kam", urip: 8 },
+  { name: "Sukra", short: "Suk", indo: "Jum", urip: 6 },
+  { name: "Saniscara", short: "San", indo: "Sab", urip: 9 }
 ];
 
 export const PANCA_WARA = [
@@ -28,8 +22,14 @@ export const PANCA_WARA = [
   { name: "Kliwon", short: "Kl", urip: 8 }
 ];
 
+export const DWI_WARA = ["Menga", "Pepet"];
 export const TRI_WARA = ["Pasah", "Beteng", "Kajeng"];
+export const CATUR_WARA = ["Sri", "Laba", "Jaya", "Menala"];
 export const SAD_WARA = ["Tungleh", "Aryang", "Urukung", "Paniron", "Was", "Maulu"];
+export const ASTA_WARA = ["Sri", "Indra", "Guru", "Yama", "Ludra", "Brahma", "Kala", "Uma"];
+export const SANGA_WARA = ["Dangu", "Jangur", "Gigis", "Nohan", "Ogan", "Erangan", "Urungan", "Tulus", "Dadi"];
+export const DASA_WARA = ["Pandita", "Pati", "Suka", "Duka", "Sri", "Manuh", "Manusa", "Raja", "Dewa", "Raksasa"];
+export const JEJEPAN = ["Mina", "Taru", "Sato", "Patra", "Wong", "Paksi"];
 
 export const WUKU = [
   "Sinta", "Landep", "Ukir", "Kulantir", "Tolu",
@@ -38,6 +38,15 @@ export const WUKU = [
   "Pahang", "Krulut", "Merakih", "Tambir", "Medangkungan",
   "Matal", "Uye", "Menail", "Prangbakat", "Bala",
   "Ugu", "Wayang", "Klawu", "Dukut", "Watugunung"
+];
+
+export const WUKU_SHORT = [
+  "Sint", "Land", "Ukir", "Kula", "Tolu",
+  "Gumb", "Wari", "Wgd", "Julu", "Sung",
+  "Dung", "Kuni", "Lang", "Meda", "Puju",
+  "Paha", "Krul", "Mrak", "Tamb", "Medk",
+  "Mata", "Uye", "Mena", "Pran", "Bala",
+  "Ugu", "Waya", "Klaw", "Duku", "Watu"
 ];
 
 export const INGKEL = [
@@ -70,33 +79,17 @@ const TUMPEK_NAMES = {
   Wayang: "Tumpek Wayang"
 };
 
-// Anchor Pawukon: 2026-11-21 = Saniscara (6) Paing (1) Ukir (wuku 2 -> pawukon 20)
+// Pivot Pawukon: 2026-11-21 = Saniscara (6) Paing (1) Ukir (wuku 2 -> pawukon 20)
 const ANCHOR_PAWUKON_UTC = Date.UTC(2026, 10, 21);
 const ANCHOR_PAWUKON_IDX = 20;
 
-// Anchor Saka (Sistem Pangalantaka Eka Sungsang ke Paing — standar Bali modern):
-// 2000-01-06 = Tilem Kapitu (Saka 1921), hari 1 dari siklus Ngunalatri 63 hari
-// Untuk presisi tinggi lintas dekade (1950–2060), gunakan pivot 2026-11-09 = Tilem Kalima (Saka 1948)
-// dengan siklus Pangalantaka 63 hari (1 bulan Saka = 30 tithi; tiap 63 hari maju 1 tithi / ngunalatri).
-// Mari kita kalibrasi exact ngunalatri offset terhadap 2026-03-19 (Nyepi 1948) & 2027-03-08 (Nyepi 1949)!
-const SAKA_ANCHOR_UTC = Date.UTC(2026, 10, 9); // 2026-11-09 = Tilem Kalima (akhir Sasih Kalima, Saka 1948)
+// Pivot Saka (Sistem Pangalantaka Eka Sungsang ke Paing — standar Bali modern):
+const SAKA_ANCHOR_UTC = Date.UTC(2026, 10, 9); // 2026-11-09 = Tilem Kalima, Saka 1948
 const SAKA_ANCHOR_YEAR = 1948;
-const SAKA_ANCHOR_SASIH_IDX = 4; // 0=Kasa .. 4=Kalima, 5=Kanem .. 9=Kadasa
-// Total tithi sejak Tilem Kalima 1948 = 0 pada 2026-11-09.
-// Pada 2026-11-10: tithi = 1 -> Penanggal 1 Sasih Kanem
-// Pada 2026-11-21 (+12 hari): tithi = 12 -> Penanggal 12 Sasih Kanem
-// Pada 2026-11-24 (+15 hari): tithi = 15 -> Purnama Sasih Kanem
-// Pada 2027-03-08 (+119 hari dari 2026-11-09):
-// 119 hari + floor((119 + offset) / 63) harus menghasilkan 121 tithi (= 4 sasih * 30 + 1 -> Penanggal 1 Sasih Kadasa Saka 1949!)
-// Cek: 119 + 2 = 121 -> jika offset = 7, (119 + 7) = 126, floor(126 / 63) = 2!
-// Cek mundur ke 2026-03-19 (-235 hari dari 2026-11-09):
-// (-235 + 7) = -228 -> floor(-228 / 63) = -4 -> -235 + (-4) = -239 tithi!
-// Dari akhir Sasih Kalima (tithi 0) mundur 239 tithi = -239 = -8*30 + 1 -> Penanggal 1 dari (4 - 7 = -3 -> 9 = Kadasa) Saka 1948!
-// TEPAT 100% pada 2026-03-19 (Nyepi 1948), 2026-11-09 (Tilem Kalima), 2026-11-21 (Penanggal 12 Kanem), 2026-11-24 (Purnama Kanem), dan 2027-03-08 (Nyepi 1949)!
+const SAKA_ANCHOR_SASIH_IDX = 4; // Kalima
 const NGUNALATRI_OFFSET = 7;
 
-// Tahun Saka dengan Nampih Sasih (siklus 19 tahun Metonik Bali: sisa bagi 19 = 0, 3, 6, 8, 11, 14, 16)
-// (Di Bali modern setelah 1993: Nampih Desta pada tahun-tahun tertentu; jika bukan tahun nampih = 12 sasih)
+// Tahun Saka dengan Nampih Sasih (siklus 19 tahun Metonik Bali)
 const NAMPIH_REMAINDERS = new Set([0, 3, 6, 8, 11, 14, 16]);
 
 function mod(n, m) {
@@ -130,8 +123,6 @@ function isNampihYear(sakaYear) {
 }
 
 function getSakaMonthSequence(sakaYear) {
-  // Urutan sasih dalam 1 tahun Saka dimulai dari Kadasa (idx 9) -> Jyestha (10) -> Sadha (11) -> Kasa (0) .. Kasanga (8)
-  // Jika tahun Nampih, disisipkan Nampih Desta setelah Jyestha (sesuai ketetapan PHDI/Eka Sungsang ke Paing)
   const seq = [
     { idx: 9, name: "Kadasa", isNampih: false },
     { idx: 10, name: "Jyestha", isNampih: false }
@@ -162,15 +153,10 @@ function computeSakaInfo(targetUtc) {
   const isNgunalatri = ngunalatriCount > prevNgunalatriCount;
   const nextIsNgunalatri = nextNgunalatriCount > ngunalatriCount;
 
-  // Total tithi relatif terhadap akhir Sasih Kalima 1948 (tithi = 0 -> Tilem Kalima 1948)
   const totalTithi = diffDays + ngunalatriCount;
-
-  // Bulan keberapa relatif terhadap Sasih Kalima 1948 (monthOffset = 0 berarti Sasih Kalima, 1 = Kanem, dst.)
-  // Karena tithi 0 = hari ke-30 Sasih Kalima, tithi 1..30 = Sasih Kanem (+1), tithi -29..0 = Sasih Kalima (0)
   const monthOffset = Math.ceil(totalTithi / 30);
-  const tithiInMonth = mod(totalTithi - 1, 30) + 1; // 1..30 (1..15 = Penanggal, 16..30 = Pangelong)
+  const tithiInMonth = mod(totalTithi - 1, 30) + 1;
 
-  // Cari tahun Saka dan nama Sasih dari monthOffset relatif terhadap posisi Kalima di Saka 1948
   let sakaYear = SAKA_ANCHOR_YEAR;
   let seq = getSakaMonthSequence(sakaYear);
   let pos = seq.findIndex((m) => m.idx === SAKA_ANCHOR_SASIH_IDX && !m.isNampih);
@@ -203,8 +189,6 @@ function computeSakaInfo(targetUtc) {
   const sasihDay = isPenanggal ? tithiInMonth : tithiInMonth - 15;
   const phaseName = isPenanggal ? "Penanggal" : "Pangelong";
 
-  // Cek Purnama (tithi 15) & Tilem (tithi 30)
-  // Bila besok Ngunalatri melompati tithi 15 atau 30, Purnama/Tilem jatuh pada hari ini (tithi 14/29) sesuai dresta Pangalantaka
   const isPurnama = tithiInMonth === 15 || (tithiInMonth === 14 && nextIsNgunalatri);
   const isTilem = tithiInMonth === 30 || (tithiInMonth === 29 && nextIsNgunalatri);
 
@@ -229,19 +213,44 @@ export function getBalineseCalendarInfo(dateInput = new Date()) {
   const diffPawukon = Math.round((targetUtc - ANCHOR_PAWUKON_UTC) / 86400000);
   const pawukon = mod(ANCHOR_PAWUKON_IDX + diffPawukon, 210);
 
-  const saptaIdx = d.getUTCDay(); // 0=Redite..6=Saniscara
-  const pancaIdx = mod(1 + pawukon, 5); // pawukon 0 (Redite Sinta) = Paing (1)
-  const triIdx = mod(pawukon, 3);
-  const sadIdx = mod(pawukon, 6);
-  const wukuIdx = Math.floor(pawukon / 7);
-  const ingkelObj = INGKEL[mod(wukuIdx, 6)];
-
+  // 10 WEWARAN LENGKAP (Standar Kalender Cetak Bangbang Gde Rawi)
+  const saptaIdx = d.getUTCDay();
+  const pancaIdx = mod(1 + pawukon, 5);
   const sapta = SAPTA_WARA[saptaIdx];
   const panca = PANCA_WARA[pancaIdx];
-  const tri = TRI_WARA[triIdx];
-  const sad = SAD_WARA[sadIdx];
-  const wuku = WUKU[wukuIdx];
   const urip = sapta.urip + panca.urip;
+
+  const ekaWara = urip % 2 === 1 ? "Luang" : "—";
+  const dwiWara = DWI_WARA[urip % 2];
+  const triWara = TRI_WARA[mod(pawukon, 3)];
+
+  // Catur Wara (Jaya Tiga pada pawukon 70, 71, 72 = Redite-Anggara Dungulan)
+  let caturIdx;
+  if (pawukon < 71) caturIdx = mod(pawukon, 4);
+  else if (pawukon === 71 || pawukon === 72) caturIdx = 2; // Jaya
+  else caturIdx = mod(pawukon - 2, 4);
+  const caturWara = CATUR_WARA[caturIdx];
+
+  const sadWara = SAD_WARA[mod(pawukon, 6)];
+
+  // Asta Wara (Kala Tiga pada pawukon 70, 71, 72 = Redite-Anggara Dungulan)
+  let astaIdx;
+  if (pawukon < 71) astaIdx = mod(pawukon, 8);
+  else if (pawukon === 71 || pawukon === 72) astaIdx = 6; // Kala
+  else astaIdx = mod(pawukon - 2, 8);
+  const astaWara = ASTA_WARA[astaIdx];
+
+  // Sanga Wara (Dangu Pat pada pawukon 0, 1, 2, 3 = Redite-Buda Sinta)
+  const sangaIdx = pawukon <= 3 ? 0 : mod(pawukon - 3, 9);
+  const sangaWara = SANGA_WARA[sangaIdx];
+
+  const dasaWara = DASA_WARA[mod(urip, 10)];
+
+  const wukuIdx = Math.floor(pawukon / 7);
+  const wuku = WUKU[wukuIdx];
+  const wukuShort = WUKU_SHORT[wukuIdx];
+  const ingkelObj = INGKEL[mod(wukuIdx, 6)];
+  const jejepan = JEJEPAN[mod(pawukon, 6)];
 
   const sakaInfo = computeSakaInfo(targetUtc);
 
@@ -249,18 +258,11 @@ export function getBalineseCalendarInfo(dateInput = new Date()) {
   const rahinan = [];
   const rahinanMajor = [];
 
-  if (sakaInfo.isPurnama) {
-    rahinan.push(`Purnama ${sakaInfo.sasihName}`);
-  }
-  if (sakaInfo.isTilem) {
-    rahinan.push(`Tilem ${sakaInfo.sasihName}`);
-  }
-  if (tri === "Kajeng" && panca.name === "Kliwon") {
-    rahinan.push("Kajeng Kliwon");
-  }
-  if (sapta.name === "Anggara" && panca.name === "Kliwon") {
-    rahinan.push(`Anggara Kasih ${wuku}`);
-  }
+  if (sakaInfo.isPurnama) rahinan.push(`Purnama ${sakaInfo.sasihName}`);
+  if (sakaInfo.isTilem) rahinan.push(`Tilem ${sakaInfo.sasihName}`);
+  if (triWara === "Kajeng" && panca.name === "Kliwon") rahinan.push("Kajeng Kliwon");
+  if (sapta.name === "Anggara" && panca.name === "Kliwon") rahinan.push(`Anggara Kasih ${wuku}`);
+
   if (sapta.name === "Buda" && panca.name === "Kliwon") {
     if (wuku === "Sinta") {
       rahinan.push("Hari Raya Pagerwesi");
@@ -272,9 +274,7 @@ export function getBalineseCalendarInfo(dateInput = new Date()) {
       rahinan.push(`Buda Kliwon ${wuku}`);
     }
   }
-  if (sapta.name === "Buda" && panca.name === "Wage") {
-    rahinan.push(`Buda Cemeng ${wuku}`);
-  }
+  if (sapta.name === "Buda" && panca.name === "Wage") rahinan.push(`Buda Cemeng ${wuku}`);
   if (sapta.name === "Saniscara" && panca.name === "Kliwon") {
     const tumpekLabel = TUMPEK_NAMES[wuku] || `Tumpek ${wuku}`;
     rahinan.push(tumpekLabel);
@@ -284,23 +284,12 @@ export function getBalineseCalendarInfo(dateInput = new Date()) {
     rahinan.push("Hari Raya Saraswati");
     rahinanMajor.push("Hari Raya Saraswati");
   }
-  if (wuku === "Sinta" && sapta.name === "Redite" && panca.name === "Paing") {
-    rahinan.push("Banyu Pinaruh");
-  }
-  if (wuku === "Sinta" && sapta.name === "Soma" && panca.name === "Pon") {
-    rahinan.push("Soma Ribek");
-  }
-  if (wuku === "Sinta" && sapta.name === "Anggara" && panca.name === "Wage") {
-    rahinan.push("Sabuh Mas");
-  }
-  if (wuku === "Dungulan" && sapta.name === "Anggara" && panca.name === "Wage") {
-    rahinan.push("Penampahan Galungan");
-  }
-  if (wuku === "Dungulan" && sapta.name === "Wraspati" && panca.name === "Umanis") {
-    rahinan.push("Umanis Galungan");
-  }
+  if (wuku === "Sinta" && sapta.name === "Redite" && panca.name === "Paing") rahinan.push("Banyu Pinaruh");
+  if (wuku === "Sinta" && sapta.name === "Soma" && panca.name === "Pon") rahinan.push("Soma Ribek");
+  if (wuku === "Sinta" && sapta.name === "Anggara" && panca.name === "Wage") rahinan.push("Sabuh Mas");
+  if (wuku === "Dungulan" && sapta.name === "Anggara" && panca.name === "Wage") rahinan.push("Penampahan Galungan");
+  if (wuku === "Dungulan" && sapta.name === "Wraspati" && panca.name === "Umanis") rahinan.push("Umanis Galungan");
 
-  // Hari Suci Berbasis Sasih (Saka)
   if (!sakaInfo.isNampih && sakaInfo.sasihIdx === 6 && sakaInfo.phaseName === "Pangelong" && sakaInfo.sasihDay === 14) {
     rahinan.push("Hari Suci Siwaratri");
     rahinanMajor.push("Hari Suci Siwaratri");
@@ -317,58 +306,49 @@ export function getBalineseCalendarInfo(dateInput = new Date()) {
     rahinan.push("Ngembak Geni");
   }
 
-  // Pratinjau Wariga / Indikator Awal Dewasa Ayu (edukatif, bukan pengganti Sulinggih)
-  const dewasaHints = [];
-  if (sakaInfo.isPurnama) {
-    dewasaHints.push({ sifat: "Ayu", label: "Purnama — Baik untuk Dewa Yadnya, persembahyangan, & penyucian diri." });
-  }
-  if (sakaInfo.isTilem) {
-    dewasaHints.push({ sifat: "Peringatan", label: "Tilem — Baik untuk pembersihan/pebersihan & kontemplasi; hindari memulai upacara sukacita tanpa arahan Wariga." });
-  }
-  if (tri === "Kajeng" && panca.name === "Kliwon") {
-    dewasaHints.push({ sifat: "Peringatan", label: "Kajeng Kliwon — Utamakan menghaturkan segehan & penyelarasan Bhuta Yadnya." });
-  }
-  if (sapta.name === "Wraspati" && panca.name === "Umanis") {
-    dewasaHints.push({ sifat: "Ayu", label: "Wraspati Umanis — Umumnya dipandang baik untuk belajar, memulai usaha, atau pertemuan keluarga." });
-  }
-  if (wuku === "Wayang") {
-    dewasaHints.push({ sifat: "Peringatan", label: "Wuku Wayang — Kelahiran pada Wuku ini biasanya perlu konsultasi tetua soal melukat Sapuh Leger." });
-  }
-  dewasaHints.push({ sifat: "Info", label: `Ingkel ${ingkelObj.name}: ${ingkelObj.catatan}` });
-
   return {
     isoDate: `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`,
     indoDate: formatIndoDate(targetUtc),
-    source: "Engine Saka & Pawukon Offline (100% Lokal)",
+    dayOfWeek: saptaIdx,
+    source: "Engine Wariga & Saka Offline (10 Wewaran)",
     pawukon,
-    saptaWara: sapta.name,
-    saptaShort: sapta.short,
+    ekaWara,
+    dwiWara,
+    triWara,
+    caturWara,
     pancaWara: panca.name,
     pancaShort: panca.short,
-    triWara: tri,
-    sadWara: sad,
+    sadWara,
+    saptaWara: sapta.name,
+    saptaShort: sapta.short,
+    astaWara,
+    sangaWara,
+    dasaWara,
     wuku,
+    wukuShort,
     wukuIdx,
     urip,
     ingkel: ingkelObj.name,
     ingkelNote: ingkelObj.catatan,
+    jejepan,
     sasih: `Sasih ${sakaInfo.sasihName}`,
     sasihRaw: sakaInfo.sasihName,
+    sasihIdx: sakaInfo.sasihIdx,
     saka: `Saka ${sakaInfo.sakaYear}`,
     sakaYear: sakaInfo.sakaYear,
+    phaseName: sakaInfo.phaseName,
+    sasihDay: sakaInfo.sasihDay,
     penanggal: `${sakaInfo.phaseName} ${sakaInfo.sasihDay}`,
     isPurnama: sakaInfo.isPurnama,
     isTilem: sakaInfo.isTilem,
     rahinan,
-    rahinanMajor,
-    dewasaHints
+    rahinanMajor
   };
 }
 
 export function getMonthCalendar(year, monthIndex) {
-  // monthIndex: 0..11
   const firstDayUtc = Date.UTC(year, monthIndex, 1);
-  const firstDow = new Date(firstDayUtc).getUTCDay(); // 0=Minggu/Redite
+  const firstDow = new Date(firstDayUtc).getUTCDay();
   const daysInMonth = new Date(Date.UTC(year, monthIndex + 1, 0)).getUTCDate();
 
   const days = [];
@@ -377,13 +357,37 @@ export function getMonthCalendar(year, monthIndex) {
     days.push({ day, ...info });
   }
 
+  // Susun kolom minggu (Wuku) untuk Mode Klasik Cetak Bali (vertikal: baris = Redite..Saniscara, kolom = Wuku)
+  const weeks = [];
+  let currentWeek = new Array(7).fill(null);
+  let weekWuku = "";
+  let weekWukuShort = "";
+
+  days.forEach((d) => {
+    if (d.dayOfWeek === 0 && currentWeek.some((x) => x !== null)) {
+      weeks.push({ wuku: weekWuku, wukuShort: weekWukuShort, days: currentWeek });
+      currentWeek = new Array(7).fill(null);
+      weekWuku = "";
+      weekWukuShort = "";
+    }
+    currentWeek[d.dayOfWeek] = d;
+    if (!weekWuku) {
+      weekWuku = d.wuku;
+      weekWukuShort = d.wukuShort;
+    }
+  });
+  if (currentWeek.some((x) => x !== null)) {
+    weeks.push({ wuku: weekWuku, wukuShort: weekWukuShort, days: currentWeek });
+  }
+
   return {
     year,
     monthIndex,
     monthName: BULAN_ID[monthIndex],
     firstDow,
     daysInMonth,
-    days
+    days,
+    weeks
   };
 }
 

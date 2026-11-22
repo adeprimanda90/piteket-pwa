@@ -1,11 +1,13 @@
 import { PITEKET_CONFIG } from './config.js';
 import {
+  SAPTA_WARA,
   getBalineseCalendarInfo,
   getMonthCalendar,
   getUpcomingRahinan,
   calculateOtonan,
   formatIsoDate
 } from './calendar-engine.js';
+import { evaluateAlaAyuningDewasa, findGoodDaysInMonth } from './dewasa-engine.js';
 import { buildIcsContent, downloadIcsFile } from './ics-export.js';
 import { DEFAULT_CHECKLISTS } from './checklists.js';
 
@@ -45,9 +47,11 @@ const state = {
   dewasa: [],
   glosarium: [],
   activeFeedbackTopic: null,
-  // Fase 2: Kalender, Rahinan & Otonan
+  // Tahap A: Mode Klasik Cetak Bali (vertikal per Wuku) vs Bulanan Standar + Cari Hari Baik
   calYear: nowDate.getFullYear(),
   calMonth: nowDate.getMonth(),
+  calViewMode: localStorage.getItem('piteket_cal_view') || 'classic',
+  dewasaFinderCat: 'usaha',
   selectedIso: todayIso,
   rahinanFilter: 'ALL',
   otonanBirthDate: localStorage.getItem('piteket_last_otonan_birth') || '',
@@ -186,24 +190,72 @@ function exportAllFamilyOtonanIcs() {
   showToast(`File .ics gabungan (${events.length} jadwal Otonan keluarga) diunduh!`);
 }
 
-function renderFase2CalendarTab(container) {
-  const monthData = getMonthCalendar(state.calYear, state.calMonth);
-  const selectedInfo = getBalineseCalendarInfo(state.selectedIso);
-  const upcomingRahinan = getUpcomingRahinan(todayIso, 180, state.rahinanFilter).slice(0, 8);
+function renderClassicVerticalGrid(monthData) {
+  const weeks = monthData.weeks;
+  const colTemplate = `78px repeat(${weeks.length}, minmax(56px, 1fr))`;
 
+  const headerRow = `
+    <div class="kb-row kb-head" style="grid-template-columns:${colTemplate};">
+      <div class="kb-day-label kb-corner">Wuku &rarr;</div>
+      ${weeks.map((w) => `<div class="kb-wuku-head" title="Wuku ${w.wuku}">${w.wukuShort}<small>${w.wuku}</small></div>`).join('')}
+    </div>
+  `;
+
+  const bodyRows = SAPTA_WARA.map((sw, dowIdx) => {
+    const isRedite = dowIdx === 0;
+    const cells = weeks.map((w) => {
+      const d = w.days[dowIdx];
+      if (!d) return '<div class="kb-cell kb-empty"></div>';
+      const isToday = d.isoDate === todayIso;
+      const isSelected = d.isoDate === state.selectedIso;
+      const hasMajor = d.rahinanMajor.length > 0 || d.rahinan.some((r) => r.startsWith('Tumpek'));
+      const hasKK = d.rahinan.includes('Kajeng Kliwon');
+
+      const dots = [];
+      if (d.isPurnama) dots.push('<span class="mcal-dot dot-purnama" title="Purnama"></span>');
+      if (d.isTilem) dots.push('<span class="mcal-dot dot-tilem" title="Tilem"></span>');
+      if (hasMajor) dots.push('<span class="mcal-dot dot-major" title="Hari Raya / Tumpek"></span>');
+      if (hasKK) dots.push('<span class="mcal-dot dot-kk" title="Kajeng Kliwon"></span>');
+
+      return `
+        <button type="button" class="kb-cell ${isRedite ? 'is-redite' : ''} ${isToday ? 'is-today' : ''} ${isSelected ? 'is-selected' : ''}" data-select-iso="${d.isoDate}">
+          <div class="kb-cell-top">
+            <span class="kb-tithi">${d.phaseName === 'Penanggal' ? 'P' : 'Pg'}${d.sasihDay}</span>
+            <span class="kb-panca">${d.pancaShort}</span>
+          </div>
+          <div class="kb-num ${hasMajor ? 'is-holiday' : ''}">${d.day}</div>
+          <div class="mcal-dots" style="justify-content:center;">${dots.join('')}</div>
+        </button>
+      `;
+    }).join('');
+
+    return `
+      <div class="kb-row" style="grid-template-columns:${colTemplate};">
+        <div class="kb-day-label ${isRedite ? 'is-redite' : ''}">
+          <strong>${sw.indo}</strong>
+          <span>${sw.short}</span>
+        </div>
+        ${cells}
+      </div>
+    `;
+  }).join('');
+
+  return `<div class="kb-table-wrap">${headerRow}${bodyRows}</div>`;
+}
+
+function renderStandardMonthGrid(monthData) {
   const leadingBlanks = Array.from({ length: monthData.firstDow }, () => '<div class="mcal-cell mcal-blank"></div>').join('');
-
   const dayCells = monthData.days.map((d) => {
     const isToday = d.isoDate === todayIso;
     const isSelected = d.isoDate === state.selectedIso;
     const hasMajor = d.rahinanMajor.length > 0 || d.rahinan.some((r) => r.startsWith('Tumpek'));
-    const hasKajengKliwon = d.rahinan.includes('Kajeng Kliwon');
+    const hasKK = d.rahinan.includes('Kajeng Kliwon');
 
     const dots = [];
     if (d.isPurnama) dots.push('<span class="mcal-dot dot-purnama" title="Purnama"></span>');
     if (d.isTilem) dots.push('<span class="mcal-dot dot-tilem" title="Tilem"></span>');
     if (hasMajor) dots.push('<span class="mcal-dot dot-major" title="Hari Raya / Tumpek"></span>');
-    if (hasKajengKliwon) dots.push('<span class="mcal-dot dot-kk" title="Kajeng Kliwon"></span>');
+    if (hasKK) dots.push('<span class="mcal-dot dot-kk" title="Kajeng Kliwon"></span>');
 
     return `
       <button type="button" class="mcal-cell ${isToday ? 'is-today' : ''} ${isSelected ? 'is-selected' : ''}" data-select-iso="${d.isoDate}">
@@ -217,6 +269,26 @@ function renderFase2CalendarTab(container) {
     `;
   }).join('');
 
+  return `
+    <div class="mcal-weekdays">
+      <div>Redite<br/><small>Min</small></div>
+      <div>Soma<br/><small>Sen</small></div>
+      <div>Anggara<br/><small>Sel</small></div>
+      <div>Buda<br/><small>Rab</small></div>
+      <div>Wraspati<br/><small>Kam</small></div>
+      <div>Sukra<br/><small>Jum</small></div>
+      <div>Saniscara<br/><small>Sab</small></div>
+    </div>
+    <div class="mcal-grid">${leadingBlanks}${dayCells}</div>
+  `;
+}
+
+function renderFase2CalendarTab(container) {
+  const monthData = getMonthCalendar(state.calYear, state.calMonth);
+  const selectedInfo = getBalineseCalendarInfo(state.selectedIso);
+  const dewasaEval = evaluateAlaAyuningDewasa(selectedInfo);
+  const goodDays = findGoodDaysInMonth(monthData.days, state.dewasaFinderCat);
+  const upcomingRahinan = getUpcomingRahinan(todayIso, 180, state.rahinanFilter).slice(0, 8);
   const otonanResult = state.otonanBirthDate ? calculateOtonan(state.otonanBirthDate, todayIso, 3) : null;
 
   const savedOtonanSorted = state.familyOtonan
@@ -228,47 +300,44 @@ function renderFase2CalendarTab(container) {
 
   container.innerHTML = `
     <div class="fase2-layout">
+      <!-- 1. KALENDER BALI ALA CETAK BANGBANG GDE RAWI & BULANAN -->
       <section class="f2-panel">
         <div class="mcal-header">
           <div>
-            <h3 class="f2-title">Kalender Bali Bulanan</h3>
-            <p class="f2-sub">Klik tanggal mana pun untuk melihat Wewaran, Sasih, Rahinan & pratinjau Wariga.</p>
+            <h3 class="f2-title">Kalender Bali Lengkap (10 Wewaran & Ala Ayuning Dewasa)</h3>
+            <p class="f2-sub">Pilih tampilan Klasik Cetak Bali (vertikal per Wuku) atau Bulanan. Klik tanggal untuk detail lengkap.</p>
           </div>
           <div class="mcal-nav">
-            <button type="button" class="btn btn-outline btn-sm" id="mcal-prev">&larr; Sebelumnya</button>
+            <button type="button" class="btn btn-outline btn-sm" id="mcal-prev">&larr;</button>
             <strong class="mcal-month-label">${monthData.monthName} ${monthData.year}</strong>
-            <button type="button" class="btn btn-outline btn-sm" id="mcal-next">Berikutnya &rarr;</button>
+            <button type="button" class="btn btn-outline btn-sm" id="mcal-next">&rarr;</button>
             <button type="button" class="btn btn-primary btn-sm" id="mcal-today">Hari Ini</button>
           </div>
         </div>
 
-        <div class="mcal-legend">
-          <span><i class="mcal-dot dot-purnama"></i> Purnama</span>
-          <span><i class="mcal-dot dot-tilem"></i> Tilem</span>
-          <span><i class="mcal-dot dot-major"></i> Hari Raya / Tumpek</span>
-          <span><i class="mcal-dot dot-kk"></i> Kajeng Kliwon</span>
+        <div class="mcal-toolbar">
+          <div class="view-toggle">
+            <button type="button" class="btn btn-sm ${state.calViewMode === 'classic' ? 'btn-primary' : 'btn-outline'}" data-cal-view="classic">Mode Cetak Bali (Per Wuku)</button>
+            <button type="button" class="btn btn-sm ${state.calViewMode === 'standard' ? 'btn-primary' : 'btn-outline'}" data-cal-view="standard">Mode Bulanan Standar</button>
+          </div>
+          <div class="mcal-legend" style="margin:0;">
+            <span><i class="mcal-dot dot-purnama"></i> Purnama</span>
+            <span><i class="mcal-dot dot-tilem"></i> Tilem</span>
+            <span><i class="mcal-dot dot-major"></i> Hari Raya / Tumpek</span>
+            <span><i class="mcal-dot dot-kk"></i> Kajeng Kliwon</span>
+          </div>
         </div>
 
-        <div class="mcal-weekdays">
-          <div>Redite<br/><small>Min</small></div>
-          <div>Soma<br/><small>Sen</small></div>
-          <div>Anggara<br/><small>Sel</small></div>
-          <div>Buda<br/><small>Rab</small></div>
-          <div>Wraspati<br/><small>Kam</small></div>
-          <div>Sukra<br/><small>Jum</small></div>
-          <div>Saniscara<br/><small>Sab</small></div>
-        </div>
-        <div class="mcal-grid">
-          ${leadingBlanks}${dayCells}
-        </div>
+        ${state.calViewMode === 'classic' ? renderClassicVerticalGrid(monthData) : renderStandardMonthGrid(monthData)}
 
+        <!-- DETAIL LENGKAP TANGGAL TERPILIH (10 WEWARAN + ALA AYUNING DEWASA) -->
         <div class="day-detail-box">
           <div class="day-detail-head">
             <div>
               <div class="day-detail-date">${selectedInfo.indoDate}</div>
               <div class="day-detail-bali">${selectedInfo.saptaWara} ${selectedInfo.pancaWara} · Wuku ${selectedInfo.wuku} · ${selectedInfo.sasih} (${selectedInfo.penanggal}) · ${selectedInfo.saka}</div>
             </div>
-            <span class="tag pill-yadnya">Urip ${selectedInfo.urip} · ${selectedInfo.triWara} · ${selectedInfo.sadWara}</span>
+            <span class="tag pill-yadnya">Urip ${selectedInfo.urip} · Ingkel ${selectedInfo.ingkel}</span>
           </div>
 
           ${selectedInfo.rahinan.length ? `
@@ -277,21 +346,81 @@ function renderFase2CalendarTab(container) {
             </div>
           ` : ''}
 
+          <div class="wewaran10-grid">
+            <div class="w10-item"><span>Penanggal / Pangelong</span><strong>${selectedInfo.penanggal}</strong></div>
+            <div class="w10-item"><span>Ekawara</span><strong>${selectedInfo.ekaWara}</strong></div>
+            <div class="w10-item"><span>Dwiwara</span><strong>${selectedInfo.dwiWara}</strong></div>
+            <div class="w10-item"><span>Triwara</span><strong>${selectedInfo.triWara}</strong></div>
+            <div class="w10-item"><span>Caturwara</span><strong>${selectedInfo.caturWara}</strong></div>
+            <div class="w10-item"><span>Pancawara</span><strong>${selectedInfo.pancaWara}</strong></div>
+            <div class="w10-item"><span>Sadwara</span><strong>${selectedInfo.sadWara}</strong></div>
+            <div class="w10-item"><span>Saptawara</span><strong>${selectedInfo.saptaWara}</strong></div>
+            <div class="w10-item"><span>Astawara</span><strong>${selectedInfo.astaWara}</strong></div>
+            <div class="w10-item"><span>Sangawara</span><strong>${selectedInfo.sangaWara}</strong></div>
+            <div class="w10-item"><span>Dasawara</span><strong>${selectedInfo.dasaWara}</strong></div>
+            <div class="w10-item"><span>Wuku</span><strong>${selectedInfo.wuku}</strong></div>
+            <div class="w10-item"><span>Sasih</span><strong>${selectedInfo.sasihRaw}</strong></div>
+            <div class="w10-item"><span>Ingkel / Jejepan</span><strong>${selectedInfo.ingkel} / ${selectedInfo.jejepan}</strong></div>
+            <div class="w10-item"><span>Urip (Sapta + Panca)</span><strong>${selectedInfo.urip}</strong></div>
+            <div class="w10-item"><span>Tahun Saka</span><strong>${selectedInfo.sakaYear}</strong></div>
+          </div>
+
           <div class="wariga-preview">
-            <strong>Pratinjau Wariga / Dewasa Ayu (Indikator Awal):</strong>
-            <ul>
-              ${selectedInfo.dewasaHints.map((h) => `
-                <li>
-                  <span class="tag ${h.sifat === 'Ayu' ? 'pill-ok' : h.sifat === 'Peringatan' ? 'pill-warn' : 'pill-yadnya'}">${h.sifat}</span>
-                  ${h.label}
-                </li>
-              `).join('')}
-            </ul>
-            <p class="wariga-note">Catatan kerendahan hati: Pratinjau ini adalah rujukan belajar awal berbasis Ingkel & Rahinan. Untuk menentukan <em>Dewasa Ayu</em> upacara besar (Pawiwahan, Ngaben, Mlaspas), tetap konsultasikan dengan Sulinggih atau ahli Wariga setempat.</p>
+            <strong>Ala Ayuning Dewasa (${selectedInfo.indoDate}):</strong>
+            <div class="dewasa-split">
+              <div class="dewasa-col">
+                <div class="dewasa-col-head is-ayu">Dewasa Ayu / Baik Untuk (${dewasaEval.ayu.length})</div>
+                ${dewasaEval.ayu.length ? `
+                  <ul>
+                    ${dewasaEval.ayu.map((a) => `<li><div><strong>${a.name}:</strong> ${a.desc}</div></li>`).join('')}
+                  </ul>
+                ` : `<p class="f2-sub">Tidak ada Dewasa Ayu khusus utama yang tercatat pada rumusan dasar tanggal ini.</p>`}
+              </div>
+              <div class="dewasa-col">
+                <div class="dewasa-col-head is-ala">Ala Dewasa / Pantangan (${dewasaEval.ala.length})</div>
+                ${dewasaEval.ala.length ? `
+                  <ul>
+                    ${dewasaEval.ala.map((a) => `<li><div><strong>${a.name}:</strong> ${a.desc}</div></li>`).join('')}
+                  </ul>
+                ` : `<p class="f2-sub">Bebas dari pantangan Ala Dewasa utama pada daftar rumusan dasar.</p>`}
+              </div>
+            </div>
+            <p class="wariga-note">Catatan Ingkel ${selectedInfo.ingkel}: ${selectedInfo.ingkelNote} — Untuk penetapan akhir <em>Dewasa Ayu</em> karya besar (Pawiwahan, Ngaben, Mlaspas), tetap konsultasikan dengan Sulinggih atau ahli Wariga setempat.</p>
           </div>
         </div>
       </section>
 
+      <!-- 2. PENCARI HARI BAIK BULAN INI -->
+      <section class="f2-panel">
+        <div class="mcal-header">
+          <div>
+            <h3 class="f2-title">Cari Kandidat Hari Baik — ${monthData.monthName} ${monthData.year}</h3>
+            <p class="f2-sub">Menyaring tanggal yang memiliki Dewasa Ayu sesuai kebutuhan dan bebas pantangan utama terkait.</p>
+          </div>
+          <div class="rahinan-filters">
+            <button type="button" class="btn btn-sm ${state.dewasaFinderCat === 'usaha' ? 'btn-primary' : 'btn-outline'}" data-dfcat="usaha">Usaha / Dagang</button>
+            <button type="button" class="btn btn-sm ${state.dewasaFinderCat === 'bangunan' ? 'btn-primary' : 'btn-outline'}" data-dfcat="bangunan">Bangunan / Mlaspas</button>
+            <button type="button" class="btn btn-sm ${state.dewasaFinderCat === 'yadnya' ? 'btn-primary' : 'btn-outline'}" data-dfcat="yadnya">Dewa / Pitra Yadnya</button>
+            <button type="button" class="btn btn-sm ${state.dewasaFinderCat === 'pawiwahan' ? 'btn-primary' : 'btn-outline'}" data-dfcat="pawiwahan">Pawiwahan</button>
+            <button type="button" class="btn btn-sm ${state.dewasaFinderCat === 'melukat' ? 'btn-primary' : 'btn-outline'}" data-dfcat="melukat">Melukat / Belajar</button>
+          </div>
+        </div>
+        ${goodDays.length ? `
+          <div class="rahinan-list">
+            ${goodDays.slice(0, 8).map((g) => `
+              <div class="rahinan-item" data-select-iso="${g.dayInfo.isoDate}">
+                <div class="rahinan-badge" style="background:#E7F3EC;color:#1F5C3A;">${g.dayInfo.day} ${monthData.monthName.slice(0, 3)}</div>
+                <div class="rahinan-info">
+                  <strong>${g.matchingAyu.map((a) => a.name).join(', ')}</strong>
+                  <span>${g.dayInfo.saptaWara} ${g.dayInfo.pancaWara} ${g.dayInfo.wuku} · ${g.dayInfo.penanggal}</span>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        ` : `<p class="f2-sub">Belum ada kandidat bebas pantangan utama pada bulan ${monthData.monthName} ${monthData.year} untuk kategori ini. Coba geser ke bulan berikutnya atau konsultasikan langsung ke Sulinggih.</p>`}
+      </section>
+
+      <!-- 3. HITUNG MUNDUR RAHINAN TERDEKAT -->
       <section class="f2-panel">
         <div class="mcal-header">
           <div>
@@ -320,9 +449,10 @@ function renderFase2CalendarTab(container) {
         </div>
       </section>
 
+      <!-- 4. KALKULATOR OTONAN & DAFTAR OTONAN KELUARGA -->
       <section class="f2-panel">
         <h3 class="f2-title">Kalkulator Otonan & Pengingat Keluarga</h3>
-        <p class="f2-sub">Hitung hari lahir Pawukon (tiap 210 hari), simpan privat di perangkat Anda, dan ekspor pengingat H-3 & H-1 ke Kalender HP.</p>
+        <p class="f2-sub">Hitung hari lahir Pawukon (tiap 210 hari), simpan di perangkat Anda, dan ekspor pengingat H-3 & H-1 ke Kalender HP.</p>
 
         <form id="otonan-form" class="otonan-form">
           <div class="form-group" style="margin:0;">
@@ -411,6 +541,21 @@ function renderFase2CalendarTab(container) {
     renderCalendar(todayIso);
     renderContent();
   };
+
+  container.querySelectorAll('[data-cal-view]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      state.calViewMode = btn.dataset.calView;
+      localStorage.setItem('piteket_cal_view', state.calViewMode);
+      renderContent();
+    });
+  });
+
+  container.querySelectorAll('[data-dfcat]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      state.dewasaFinderCat = btn.dataset.dfcat;
+      renderContent();
+    });
+  });
 
   container.querySelectorAll('[data-select-iso]').forEach((el) => {
     el.addEventListener('click', () => {
