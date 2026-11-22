@@ -1,23 +1,16 @@
-const CACHE_NAME = 'piteket-pwa-v4';
-const CORE_ASSETS = [
+const CACHE_NAME = 'piteket-pwa-v5';
+const STATIC_ASSETS = [
   '/',
-  '/manifest.json',
   '/css/styles.css',
-  '/js/config.js',
-  '/js/calendar-engine.js',
   '/js/app.js',
-  '/icons/icon.svg',
-  '/data/utpatti.json',
-  '/data/sthiti.json',
-  '/data/pralina.json',
-  '/data/dewasa-ayu.json',
-  '/data/glosarium-aksara.json',
-  '/data/catatan-dresta.json'
+  '/js/calendar-engine.js',
+  '/manifest.json',
+  '/icons/icon.svg'
 ];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(CORE_ASSETS))
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(STATIC_ASSETS))
   );
   self.skipWaiting();
 });
@@ -32,27 +25,52 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  if (event.request.method !== 'GET') return;
+  const req = event.request;
+  if (req.method !== 'GET') return;
 
-  if (event.request.mode === 'navigate') {
+  // Navigasi halaman: Network-first, hindari menyimpan respons redirect (Cloudflare Pages 308)
+  if (req.mode === 'navigate') {
     event.respondWith(
-      fetch(event.request).catch(() => caches.match('/'))
+      fetch(req)
+        .then((res) => {
+          if (res && res.ok && !res.redirected) {
+            const copy = res.clone();
+            caches.open(CACHE_NAME).then((c) => c.put('/', copy));
+          }
+          return res;
+        })
+        .catch(() => caches.match('/'))
     );
     return;
   }
 
-  event.respondWith(
-    caches.match(event.request).then((cached) => {
-      const networkFetch = fetch(event.request)
+  // Data JSON & config.js: Network-first agar pembaruan CMS Google Sheet langsung muncul
+  if (req.url.includes('/data/') || req.url.includes('/js/config.js')) {
+    event.respondWith(
+      fetch(req)
         .then((res) => {
-          if (res && res.status === 200 && res.type === 'basic' && !res.redirected) {
+          if (res && res.ok && !res.redirected) {
             const copy = res.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+            caches.open(CACHE_NAME).then((c) => c.put(req, copy));
           }
           return res;
         })
-        .catch(() => cached);
-      return cached || networkFetch;
+        .catch(() => caches.match(req))
+    );
+    return;
+  }
+
+  // Aset statis: Cache-first dengan fallback network
+  event.respondWith(
+    caches.match(req).then((cached) => {
+      if (cached) return cached;
+      return fetch(req).then((res) => {
+        if (res && res.ok && !res.redirected && req.url.startsWith(self.location.origin)) {
+          const copy = res.clone();
+          caches.open(CACHE_NAME).then((c) => c.put(req, copy));
+        }
+        return res;
+      });
     })
   );
 });

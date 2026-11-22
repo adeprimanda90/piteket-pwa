@@ -1,5 +1,11 @@
 import { PITEKET_CONFIG } from './config.js';
-import { getBalineseCalendarInfo } from './calendar-engine.js';
+import {
+  getBalineseCalendarInfo,
+  getMonthCalendar,
+  getUpcomingRahinan,
+  calculateOtonan,
+  formatIsoDate
+} from './calendar-engine.js';
 
 const REGIONS = [
   'Denpasar',
@@ -14,6 +20,17 @@ const REGIONS = [
   'Perantauan / Luar Bali'
 ];
 
+const nowDate = new Date();
+const todayIso = formatIsoDate(nowDate);
+
+function loadSavedOtonan() {
+  try {
+    return JSON.parse(localStorage.getItem('piteket_family_otonan') || '[]');
+  } catch {
+    return [];
+  }
+}
+
 const state = {
   tab: 'panduan',
   cycleFilter: 'ALL',
@@ -24,7 +41,15 @@ const state = {
   dresta: [],
   dewasa: [],
   glosarium: [],
-  activeFeedbackTopic: null
+  activeFeedbackTopic: null,
+  // Fase 2: State Kalender Bulanan, Rahinan & Otonan
+  calYear: nowDate.getFullYear(),
+  calMonth: nowDate.getMonth(),
+  selectedIso: todayIso,
+  rahinanFilter: 'ALL',
+  otonanBirthDate: localStorage.getItem('piteket_last_otonan_birth') || '',
+  otonanName: '',
+  familyOtonan: loadSavedOtonan()
 };
 
 function showToast(msg) {
@@ -40,12 +65,12 @@ function updateRegionBadge() {
 
 async function loadData() {
   const [u, s, p, dr, d, g] = await Promise.all([
-    fetch('./data/utpatti.json').then((r) => r.json()),
-    fetch('./data/sthiti.json').then((r) => r.json()),
-    fetch('./data/pralina.json').then((r) => r.json()),
+    fetch('./data/utpatti.json').then((r) => r.json()).catch(() => []),
+    fetch('./data/sthiti.json').then((r) => r.json()).catch(() => []),
+    fetch('./data/pralina.json').then((r) => r.json()).catch(() => []),
     fetch('./data/catatan-dresta.json').then((r) => r.json()).catch(() => []),
-    fetch('./data/dewasa-ayu.json').then((r) => r.json()),
-    fetch('./data/glosarium-aksara.json').then((r) => r.json())
+    fetch('./data/dewasa-ayu.json').then((r) => r.json()).catch(() => []),
+    fetch('./data/glosarium-aksara.json').then((r) => r.json()).catch(() => [])
   ]);
   state.guides = [...u, ...s, ...p];
   state.dresta = dr;
@@ -55,16 +80,17 @@ async function loadData() {
 }
 
 function renderCalendar(dateStr) {
-  const dateObj = dateStr ? new Date(dateStr + 'T12:00:00') : new Date();
-  const info = getBalineseCalendarInfo(dateObj);
+  const iso = dateStr || todayIso;
+  const info = getBalineseCalendarInfo(iso);
   document.getElementById('cal-wewaran').textContent = `${info.saptaWara} ${info.pancaWara}`;
   document.getElementById('cal-triwara').textContent = `${info.triWara} · Urip ${info.urip}`;
   document.getElementById('cal-wuku').textContent = `${info.wuku} (Ingkel ${info.ingkel})`;
-  document.getElementById('cal-sasih').textContent = info.sasih + (info.penanggal ? ` · ${info.penanggal}` : '');
+  document.getElementById('cal-sasih').textContent = `${info.sasih} · ${info.penanggal}`;
   document.getElementById('cal-saka').textContent = info.saka;
 
   const tagsEl = document.getElementById('cal-tags');
   tagsEl.innerHTML = '';
+
   if (info.rahinan.length) {
     info.rahinan.forEach((r) => {
       const span = document.createElement('span');
@@ -72,15 +98,17 @@ function renderCalendar(dateStr) {
       span.textContent = `Rahinan: ${r}`;
       tagsEl.appendChild(span);
     });
-  }
-  if (info.dewasa.length) {
-    info.dewasa.slice(0, 4).forEach((d) => {
+  } else {
+    const nextList = getUpcomingRahinan(iso, 45, 'ALL');
+    if (nextList.length) {
+      const nxt = nextList[0];
       const span = document.createElement('span');
-      span.className = 'tag tag-rahinan';
-      span.textContent = d;
+      span.className = 'tag pill-warn';
+      span.textContent = `Rahinan terdekat: ${nxt.name} (H-${nxt.daysUntil})`;
       tagsEl.appendChild(span);
-    });
+    }
   }
+
   const src = document.createElement('span');
   src.className = 'tag tag-source';
   src.textContent = info.source;
@@ -97,8 +125,297 @@ function statusClass(s) {
   return (s || '').toLowerCase().includes('terverifikasi') ? 'pill-ok' : 'pill-warn';
 }
 
+function renderFase2CalendarTab(container) {
+  const monthData = getMonthCalendar(state.calYear, state.calMonth);
+  const selectedInfo = getBalineseCalendarInfo(state.selectedIso);
+  const upcomingRahinan = getUpcomingRahinan(todayIso, 180, state.rahinanFilter).slice(0, 8);
+
+  // Hitung sel kosong di awal minggu
+  const leadingBlanks = Array.from({ length: monthData.firstDow }, () => '<div class="mcal-cell mcal-blank"></div>').join('');
+
+  const dayCells = monthData.days.map((d) => {
+    const isToday = d.isoDate === todayIso;
+    const isSelected = d.isoDate === state.selectedIso;
+    const hasMajor = d.rahinanMajor.length > 0 || d.rahinan.some((r) => r.startsWith('Tumpek'));
+    const hasKajengKliwon = d.rahinan.includes('Kajeng Kliwon');
+
+    const dots = [];
+    if (d.isPurnama) dots.push('<span class="mcal-dot dot-purnama" title="Purnama"></span>');
+    if (d.isTilem) dots.push('<span class="mcal-dot dot-tilem" title="Tilem"></span>');
+    if (hasMajor) dots.push('<span class="mcal-dot dot-major" title="Hari Raya / Tumpek"></span>');
+    if (hasKajengKliwon) dots.push('<span class="mcal-dot dot-kk" title="Kajeng Kliwon"></span>');
+
+    return `
+      <button type="button" class="mcal-cell ${isToday ? 'is-today' : ''} ${isSelected ? 'is-selected' : ''}" data-select-iso="${d.isoDate}">
+        <div class="mcal-top">
+          <span class="mcal-num">${d.day}</span>
+          <span class="mcal-panca">${d.pancaShort}</span>
+        </div>
+        <div class="mcal-wuku">${d.wuku}</div>
+        <div class="mcal-dots">${dots.join('')}</div>
+      </button>
+    `;
+  }).join('');
+
+  const otonanResult = state.otonanBirthDate ? calculateOtonan(state.otonanBirthDate, todayIso, 3) : null;
+
+  const savedOtonanSorted = state.familyOtonan
+    .map((entry) => ({
+      ...entry,
+      calc: calculateOtonan(entry.birthDate, todayIso, 1)
+    }))
+    .sort((a, b) => a.calc.upcoming[0].daysUntil - b.calc.upcoming[0].daysUntil);
+
+  container.innerHTML = `
+    <div class="fase2-layout">
+      <!-- 1. KALENDER BALI BULANAN INTERAKTIF -->
+      <section class="f2-panel">
+        <div class="mcal-header">
+          <div>
+            <h3 class="f2-title">Kalender Bali Bulanan</h3>
+            <p class="f2-sub">Klik tanggal mana pun untuk melihat Wewaran, Sasih, Rahinan & pratinjau Wariga.</p>
+          </div>
+          <div class="mcal-nav">
+            <button type="button" class="btn btn-outline btn-sm" id="mcal-prev">&larr; Sebelumnya</button>
+            <strong class="mcal-month-label">${monthData.monthName} ${monthData.year}</strong>
+            <button type="button" class="btn btn-outline btn-sm" id="mcal-next">Berikutnya &rarr;</button>
+            <button type="button" class="btn btn-primary btn-sm" id="mcal-today">Hari Ini</button>
+          </div>
+        </div>
+
+        <div class="mcal-legend">
+          <span><i class="mcal-dot dot-purnama"></i> Purnama</span>
+          <span><i class="mcal-dot dot-tilem"></i> Tilem</span>
+          <span><i class="mcal-dot dot-major"></i> Hari Raya / Tumpek</span>
+          <span><i class="mcal-dot dot-kk"></i> Kajeng Kliwon</span>
+        </div>
+
+        <div class="mcal-weekdays">
+          <div>Redite<br/><small>Min</small></div>
+          <div>Soma<br/><small>Sen</small></div>
+          <div>Anggara<br/><small>Sel</small></div>
+          <div>Buda<br/><small>Rab</small></div>
+          <div>Wraspati<br/><small>Kam</small></div>
+          <div>Sukra<br/><small>Jum</small></div>
+          <div>Saniscara<br/><small>Sab</small></div>
+        </div>
+        <div class="mcal-grid">
+          ${leadingBlanks}${dayCells}
+        </div>
+
+        <!-- DETAIL TANGGAL TERPILIH + PRATINJAU WARIGA -->
+        <div class="day-detail-box">
+          <div class="day-detail-head">
+            <div>
+              <div class="day-detail-date">${selectedInfo.indoDate}</div>
+              <div class="day-detail-bali">${selectedInfo.saptaWara} ${selectedInfo.pancaWara} · Wuku ${selectedInfo.wuku} · ${selectedInfo.sasih} (${selectedInfo.penanggal}) · ${selectedInfo.saka}</div>
+            </div>
+            <span class="tag pill-yadnya">Urip ${selectedInfo.urip} · ${selectedInfo.triWara} · ${selectedInfo.sadWara}</span>
+          </div>
+
+          ${selectedInfo.rahinan.length ? `
+            <div class="cal-tags" style="margin-top:10px;">
+              ${selectedInfo.rahinan.map((r) => `<span class="tag tag-rahinan">Rahinan: ${r}</span>`).join('')}
+            </div>
+          ` : ''}
+
+          <div class="wariga-preview">
+            <strong>Pratinjau Wariga / Dewasa Ayu (Indikator Awal):</strong>
+            <ul>
+              ${selectedInfo.dewasaHints.map((h) => `
+                <li>
+                  <span class="tag ${h.sifat === 'Ayu' ? 'pill-ok' : h.sifat === 'Peringatan' ? 'pill-warn' : 'pill-yadnya'}">${h.sifat}</span>
+                  ${h.label}
+                </li>
+              `).join('')}
+            </ul>
+            <p class="wariga-note">Catatan kerendahan hati: Pratinjau ini adalah rujukan belajar awal berbasis Ingkel & Rahinan. Untuk menentukan <em>Dewasa Ayu</em> upacara besar (Pawiwahan, Ngaben, Mlaspas), tetap konsultasikan dengan Sulinggih atau ahli Wariga setempat.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- 2. HITUNG MUNDUR RAHINAN TERDEKAT -->
+      <section class="f2-panel">
+        <div class="mcal-header">
+          <div>
+            <h3 class="f2-title">Hitung Mundur Rahinan Terdekat</h3>
+            <p class="f2-sub">Dihitung otomatis 100% offline dari hari ini (${getBalineseCalendarInfo(todayIso).indoDate}).</p>
+          </div>
+          <div class="rahinan-filters">
+            <button type="button" class="btn btn-sm ${state.rahinanFilter === 'ALL' ? 'btn-primary' : 'btn-outline'}" data-rfilter="ALL">Semua</button>
+            <button type="button" class="btn btn-sm ${state.rahinanFilter === 'MAJOR' ? 'btn-primary' : 'btn-outline'}" data-rfilter="MAJOR">Hari Raya & Tumpek</button>
+            <button type="button" class="btn btn-sm ${state.rahinanFilter === 'LUNAR' ? 'btn-primary' : 'btn-outline'}" data-rfilter="LUNAR">Purnama & Tilem</button>
+          </div>
+        </div>
+        <div class="rahinan-list">
+          ${upcomingRahinan.map((r) => `
+            <div class="rahinan-item" data-select-iso="${r.isoDate}">
+              <div class="rahinan-badge ${r.daysUntil === 0 ? 'is-now' : ''}">
+                ${r.daysUntil === 0 ? 'HARI INI' : `H-${r.daysUntil}`}
+              </div>
+              <div class="rahinan-info">
+                <strong>${r.name}</strong>
+                <span>${r.indoDate} · ${r.wewaran}</span>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </section>
+
+      <!-- 3. KALKULATOR OTONAN & DAFTAR OTONAN KELUARGA -->
+      <section class="f2-panel">
+        <h3 class="f2-title">Kalkulator Otonan & Pengingat Keluarga</h3>
+        <p class="f2-sub">Hitung hari lahir Pawukon (setiap 210 hari) dan simpan daftar Otonan keluarga secara privat di perangkat Anda.</p>
+
+        <form id="otonan-form" class="otonan-form">
+          <div class="form-group" style="margin:0;">
+            <label for="otonan-name">Nama (opsional untuk disimpan)</label>
+            <input type="text" id="otonan-name" placeholder="Contoh: Ajik / Ibu / Gek Ayu" value="${state.otonanName}" />
+          </div>
+          <div class="form-group" style="margin:0;">
+            <label for="otonan-birth">Tanggal Lahir Masehi</label>
+            <input type="date" id="otonan-birth" value="${state.otonanBirthDate}" required />
+          </div>
+          <div class="otonan-actions">
+            <button type="submit" class="btn btn-primary">Hitung Otonan</button>
+            <button type="button" class="btn btn-outline" id="save-otonan-btn">Simpan ke Daftar Keluarga</button>
+          </div>
+        </form>
+
+        ${otonanResult ? `
+          <div class="otonan-result">
+            <div class="otonan-summary">
+              <div>
+                <div class="cal-label">Weton / Hari Lahir Bali</div>
+                <div class="otonan-main-val">${otonanResult.wewaran} · Wuku ${otonanResult.wuku}</div>
+                <div class="f2-sub">Lahir: ${otonanResult.birthIndo} · Tri Wara ${otonanResult.triWara} · Urip ${otonanResult.urip} · Ingkel ${otonanResult.ingkel}</div>
+              </div>
+            </div>
+            ${otonanResult.isWukuWayang ? `
+              <div class="elder-box" style="margin-top:10px;">
+                <strong>Catatan Khusus Wuku Wayang:</strong> Dalam dresta umum di Bali, kelahiran pada Wuku Wayang sering dianjurkan untuk berkonsultasi dengan orang tua atau Sulinggih terkait upacara penyucian <em>Melukat Sapuh Leger</em>.
+              </div>
+            ` : ''}
+            <div class="otonan-next-grid">
+              ${otonanResult.upcoming.map((u) => `
+                <div class="otonan-next-card">
+                  <span class="tag pill-utpatti">Oton ke-${u.otonKe}</span>
+                  <strong>${u.indoDate}</strong>
+                  <span>${u.daysUntil === 0 ? 'Jatuh HARI INI!' : `${u.daysUntil} hari lagi`}</span>
+                  <small>${u.sasih} · ${u.penanggal}</small>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        ` : ''}
+
+        <div class="family-otonan-wrap">
+          <h4>Daftar Otonan Keluarga Tersimpan (${savedOtonanSorted.length})</h4>
+          ${savedOtonanSorted.length ? `
+            <div class="family-otonan-list">
+              ${savedOtonanSorted.map((f) => `
+                <div class="family-otonan-item">
+                  <div>
+                    <strong>${f.name}</strong>
+                    <div class="f2-sub">${f.calc.wewaran} ${f.calc.wuku} · Oton berikutnya: <strong>${f.calc.upcoming[0].indoDate}</strong> (${f.calc.upcoming[0].daysUntil === 0 ? 'HARI INI' : `H-${f.calc.upcoming[0].daysUntil}`})</div>
+                  </div>
+                  <button type="button" class="btn btn-outline btn-sm" data-del-otonan="${f.id}">Hapus</button>
+                </div>
+              `).join('')}
+            </div>
+          ` : `<p class="f2-sub">Belum ada anggota keluarga yang disimpan. Masukkan nama dan tanggal lahir di atas lalu klik <strong>Simpan ke Daftar Keluarga</strong>.</p>`}
+        </div>
+      </section>
+    </div>
+  `;
+
+  // Event bindings khusus tab Kalender & Otonan
+  document.getElementById('mcal-prev').onclick = () => {
+    state.calMonth -= 1;
+    if (state.calMonth < 0) { state.calMonth = 11; state.calYear -= 1; }
+    renderContent();
+  };
+  document.getElementById('mcal-next').onclick = () => {
+    state.calMonth += 1;
+    if (state.calMonth > 11) { state.calMonth = 0; state.calYear += 1; }
+    renderContent();
+  };
+  document.getElementById('mcal-today').onclick = () => {
+    state.calYear = nowDate.getFullYear();
+    state.calMonth = nowDate.getMonth();
+    state.selectedIso = todayIso;
+    document.getElementById('date-picker').value = todayIso;
+    renderCalendar(todayIso);
+    renderContent();
+  };
+
+  container.querySelectorAll('[data-select-iso]').forEach((el) => {
+    el.addEventListener('click', () => {
+      const iso = el.dataset.selectIso;
+      const parts = iso.split('-').map(Number);
+      state.selectedIso = iso;
+      state.calYear = parts[0];
+      state.calMonth = parts[1] - 1;
+      document.getElementById('date-picker').value = iso;
+      renderCalendar(iso);
+      renderContent();
+    });
+  });
+
+  container.querySelectorAll('[data-rfilter]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      state.rahinanFilter = btn.dataset.rfilter;
+      renderContent();
+    });
+  });
+
+  const otonForm = document.getElementById('otonan-form');
+  otonForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    state.otonanName = document.getElementById('otonan-name').value.trim();
+    state.otonanBirthDate = document.getElementById('otonan-birth').value;
+    if (state.otonanBirthDate) {
+      localStorage.setItem('piteket_last_otonan_birth', state.otonanBirthDate);
+      renderContent();
+    }
+  });
+
+  document.getElementById('save-otonan-btn').onclick = () => {
+    const name = document.getElementById('otonan-name').value.trim();
+    const birthDate = document.getElementById('otonan-birth').value;
+    if (!name || !birthDate) {
+      showToast('Isi nama dan tanggal lahir dulu sebelum menyimpan.');
+      return;
+    }
+    state.otonanName = '';
+    state.otonanBirthDate = birthDate;
+    localStorage.setItem('piteket_last_otonan_birth', birthDate);
+    state.familyOtonan.push({ id: String(Date.now()), name, birthDate });
+    localStorage.setItem('piteket_family_otonan', JSON.stringify(state.familyOtonan));
+    showToast(`Otonan ${name} disimpan di perangkat Anda.`);
+    renderContent();
+  };
+
+  container.querySelectorAll('[data-del-otonan]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      state.familyOtonan = state.familyOtonan.filter((x) => x.id !== btn.dataset.delOtonan);
+      localStorage.setItem('piteket_family_otonan', JSON.stringify(state.familyOtonan));
+      showToast('Data Otonan dihapus.');
+      renderContent();
+    });
+  });
+}
+
 function renderContent() {
   const container = document.getElementById('content-area');
+  const controlsBar = document.getElementById('controls-bar');
+  controlsBar.style.display = state.tab === 'kalender' ? 'none' : 'flex';
+
+  if (state.tab === 'kalender') {
+    renderFase2CalendarTab(container);
+    return;
+  }
+
   const q = state.search.trim().toLowerCase();
 
   if (state.tab === 'panduan') {
@@ -137,7 +454,9 @@ function renderContent() {
       const score = (x) => (x.wilayah === state.domisili || x.wilayah === state.kawitan ? 0 : 1);
       return score(a) - score(b);
     });
-    container.innerHTML = `<div class="cards-grid">${prioritized.map((d) => `
+    container.innerHTML = `<div class="cards-grid">${prioritized.map((d) => {
+      const firstUrl = (d.sumber_referensi || '').split('|')[0].trim();
+      return `
       <article class="card">
         <div class="card-meta">
           <span class="tag ${cycleClass(d.siklus)}">${d.wilayah}</span>
@@ -146,12 +465,13 @@ function renderContent() {
         </div>
         <h3>${d.wilayah} — ${d.soroh_atau_desa_khusus}</h3>
         <p>${d.catatan_dresta}</p>
-        ${d.sumber_referensi ? `<a class="dresta-source-link" href="${d.sumber_referensi}" target="_blank" rel="noopener">Lihat Sumber Jurnal / Literatur</a>` : ''}
+        ${firstUrl ? `<a class="dresta-source-link" href="${firstUrl}" target="_blank" rel="noopener">Lihat Sumber Jurnal / Literatur</a>` : ''}
         <div class="card-actions">
           <button class="btn btn-outline" data-feedback-id="${d.id_catatan}" data-feedback-tab="Catatan_Dresta" data-feedback-title="Dresta ${d.wilayah} (${d.soroh_atau_desa_khusus})" data-feedback-region="${d.wilayah}">Koreksi / Tambah Piteket ${d.wilayah}</button>
         </div>
       </article>
-    `).join('')}</div>`;
+    `;
+    }).join('')}</div>`;
   } else if (state.tab === 'dewasa') {
     const items = state.dewasa.filter((d) =>
       !q || `${d.nama_dewasa} ${d.kategori} ${d.arti_ringkas} ${d.cocok_untuk}`.toLowerCase().includes(q)
@@ -198,16 +518,19 @@ function renderContent() {
 function buildDrestaCard(label, regionName, topicId, fallbackText) {
   const matches = state.dresta.filter((d) => d.id_topik === topicId && d.wilayah === regionName);
   if (matches.length) {
-    return matches.map((m) => `
+    return matches.map((m) => {
+      const firstUrl = (m.sumber_referensi || '').split('|')[0].trim();
+      return `
       <div class="dresta-card">
         <strong>${label}: ${m.wilayah} (${m.soroh_atau_desa_khusus})</strong>
         <p>${m.catatan_dresta}</p>
         <div style="margin-top:6px;">
           <span class="tag pill-warn" style="font-size:0.72rem;">${m.status_verifikasi}</span>
-          ${m.sumber_referensi ? `<br/><a class="dresta-source-link" href="${m.sumber_referensi}" target="_blank" rel="noopener">Sumber Jurnal / Literatur</a>` : ''}
+          ${firstUrl ? `<br/><a class="dresta-source-link" href="${firstUrl}" target="_blank" rel="noopener">Sumber Jurnal / Literatur</a>` : ''}
         </div>
       </div>
-    `).join('');
+    `;
+    }).join('');
   }
   if (fallbackText && (regionName === 'Denpasar' || regionName === 'Badung' || regionName === 'Karangasem')) {
     return `
@@ -352,6 +675,15 @@ async function handleFeedbackSubmit(e) {
   closeModal('feedback-modal');
 }
 
+function switchTab(tabName) {
+  state.tab = tabName;
+  document.querySelectorAll('.tab-btn').forEach((b) => {
+    b.classList.toggle('active', b.dataset.tab === tabName);
+  });
+  document.getElementById('cycle-filter').style.display = tabName === 'panduan' ? 'inline-block' : 'none';
+  renderContent();
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   const domSelect = document.getElementById('select-domisili');
   const kawSelect = document.getElementById('select-kawitan');
@@ -384,20 +716,27 @@ document.addEventListener('DOMContentLoaded', () => {
     showToast(`Kawitan diatur ke ${state.kawitan}`);
   });
 
-  const todayStr = new Date().toISOString().slice(0, 10);
   const datePicker = document.getElementById('date-picker');
-  datePicker.value = todayStr;
-  renderCalendar(todayStr);
-  datePicker.addEventListener('change', (e) => renderCalendar(e.target.value));
+  datePicker.value = todayIso;
+  renderCalendar(todayIso);
+  datePicker.addEventListener('change', (e) => {
+    const val = e.target.value;
+    if (!val) return;
+    const parts = val.split('-').map(Number);
+    state.selectedIso = val;
+    state.calYear = parts[0];
+    state.calMonth = parts[1] - 1;
+    renderCalendar(val);
+    if (state.tab === 'kalender') renderContent();
+  });
+
+  document.getElementById('jump-calendar-btn').addEventListener('click', () => {
+    switchTab('kalender');
+    document.getElementById('content-area').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
 
   document.querySelectorAll('.tab-btn').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('.tab-btn').forEach((b) => b.classList.remove('active'));
-      btn.classList.add('active');
-      state.tab = btn.dataset.tab;
-      document.getElementById('cycle-filter').style.display = state.tab === 'panduan' ? 'inline-block' : 'none';
-      renderContent();
-    });
+    btn.addEventListener('click', () => switchTab(btn.dataset.tab));
   });
 
   document.getElementById('search-input').addEventListener('input', (e) => {

@@ -11,7 +11,6 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Balinese:wght@400;600&family=Noto+Serif+Balinese&family=Playfair+Display:wght@600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="./css/styles.css" />
-  <script defer src="https://unpkg.com/balinese-date-js-lib/dist/balinese-date-js-lib.min.js"></script>
 </head>
 <body>
   <header class="hero">
@@ -20,7 +19,7 @@
         <div>
           <span class="brand-aksara aksara">ᬧᬶᬢᭂᬓᭂᬢ᭄</span>
           <h1 class="brand-title">Piteket</h1>
-          <p class="brand-sub">Teman belajar hidup sebagai orang Bali — merangkum siklus <strong>Tri Kona</strong> (Utpatti · Sthiti · Pralina), Panca Yadnya, Dresta 10 Wilayah, dan Kalender Bali.</p>
+          <p class="brand-sub">Teman belajar hidup sebagai orang Bali — merangkum siklus <strong>Tri Kona</strong> (Utpatti · Sthiti · Pralina), Panca Yadnya, Dresta 10 Wilayah, dan Kalender Bali Offline.</p>
           <span class="region-pill" id="region-label">Domisili: Denpasar · Kawitan: Karangasem</span>
         </div>
       </div>
@@ -52,7 +51,10 @@
     <section class="calendar-card" aria-label="Kalender Bali">
       <div class="calendar-head">
         <h2>Kalender Bali Hari Ini</h2>
-        <input type="date" id="date-picker" class="date-input" aria-label="Pilih tanggal" />
+        <div class="cal-head-actions">
+          <input type="date" id="date-picker" class="date-input" aria-label="Pilih tanggal" />
+          <button type="button" class="btn btn-outline btn-sm" id="jump-calendar-btn">Buka Kalender & Otonan</button>
+        </div>
       </div>
       <div class="cal-grid">
         <div class="cal-cell">
@@ -81,13 +83,14 @@
 
     <nav class="tabs" role="tablist">
       <button class="tab-btn active" data-tab="panduan">Siklus Tri Kona</button>
+      <button class="tab-btn" data-tab="kalender">Kalender & Otonan</button>
       <button class="tab-btn" data-tab="dresta">Catatan Dresta (10 Wilayah)</button>
       <button class="tab-btn" data-tab="dewasa">Dewasa Ayu & Wariga</button>
       <button class="tab-btn" data-tab="aksara">Glosarium Aksara Bali</button>
     </nav>
 
-    <div class="controls-bar">
-      <input type="search" id="search-input" class="search-input" placeholder="Cari topik: ngaben, nyekah, cuntaka, melayat, bayi, pawiwahan..." />
+    <div class="controls-bar" id="controls-bar">
+      <input type="search" id="search-input" class="search-input" placeholder="Cari topik: ngaben, nyekah, cuntaka, melayat, bayi, pawiwahan, banten..." />
       <select id="cycle-filter" class="filter-select" aria-label="Filter Siklus Tri Kona">
         <option value="ALL">Semua Siklus (Tri Kona)</option>
         <option value="Utpatti">Utpatti (Lahir · Brahma)</option>
@@ -151,7 +154,7 @@
   <div class="toast" id="toast"></div>
 
   <footer>
-    Piteket · Catatan Belajar Hidup Orang Bali · Sumber kalender oleh <a href="https://github.com/peradnya/balinese-date-js-lib" target="_blank" rel="noopener">balinese-date-js-lib</a> · Aksara oleh <a href="https://fonts.google.com/noto/specimen/Noto+Serif+Balinese" target="_blank" rel="noopener">Noto Balinese</a>.
+    Piteket · Catatan Belajar Hidup Orang Bali · Engine Kalender Saka & Pawukon 100% Offline (Sistem Pangalantaka) · Aksara oleh <a href="https://fonts.google.com/noto/specimen/Noto+Serif+Balinese" target="_blank" rel="noopener">Noto Balinese</a>.
   </footer>
 
   <script type="module" src="./js/app.js"></script>
