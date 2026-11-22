@@ -1886,3 +1886,87 @@ footer {
   background: #F0E3D3;
   text-decoration: underline;
 }
+
+/* ======================= KALENDER LIBUR NASIONAL (v1.9) ======================= */
+.dot-nasional { background: #D61F3C; }
+.dot-cuti { background: #1D6FA5; }
+
+.tag-nasional {
+  background: #FDE8EC;
+  color: #A6142C;
+  border: 1px solid #F5C2CB;
+}
+.tag-cuti {
+  background: #E6F2FA;
+  color: #165682;
+  border: 1px solid #BCD9EE;
+}
+
+.mcal-num.is-holiday {
+  color: #B8291E;
+}
+.kb-cell.is-nat-holiday,
+.mcal-cell.is-nat-holiday {
+  background: #FFF5F6;
+}
+.kb-cell.is-cuti-bersama,
+.mcal-cell.is-cuti-bersama {
+  background: #F3F8FC;
+}
+
+.month-holidays-strip {
+  margin-top: 12px;
+  padding: 10px 12px;
+  background: #FFFBF7;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.month-holidays-title {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--ink);
+  margin-bottom: 6px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.month-holidays-title small {
+  font-weight: 500;
+  color: var(--ink-muted);
+}
+.month-holidays-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.month-holiday-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: transform 0.12s ease, filter 0.12s ease;
+}
+.month-holiday-chip:hover {
+  transform: translateY(-1px);
+  filter: brightness(0.97);
+}
+.month-holiday-chip.is-nasional {
+  background: #FDE8EC;
+  color: #A6142C;
+  border-color: #F5C2CB;
+}
+.month-holiday-chip.is-cuti {
+  background: #E6F2FA;
+  color: #165682;
+  border-color: #BCD9EE;
+}
+.month-holiday-chip .mh-day {
+  font-weight: 800;
+}

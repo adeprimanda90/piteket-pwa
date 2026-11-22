@@ -6,6 +6,7 @@
 
 import { getUpcomingRahinan, getBalineseCalendarInfo, getMonthCalendar, calculateOtonan } from './calendar-engine.js';
 import { findGoodDaysInMonth } from './dewasa-engine.js';
+import { getUpcomingNationalHolidays, getNationalHolidaysForDate } from './national-holidays.js';
 
 const STOP_WORDS = new Set([
   'apa', 'apakah', 'bagaimana', 'gimana', 'cara', 'kapan', 'dimana', 'di', 'ke',
@@ -36,7 +37,8 @@ const CONCEPT_GROUPS = [
   ['tumpek', 'landep', 'uduh', 'pengarah', 'krulut', 'kandang', 'wayang', 'besi', 'kendaraan', 'motor', 'mobil', 'tanaman', 'hewan'],
   ['dewasa ayu', 'hari baik', 'wariga', 'ala ayuning', 'piodalan', 'odalan', 'rahinan'],
   ['aksara', 'tulisan bali', 'glosarium', 'istilah', 'arti kata', 'bahasa bali', 'kosa kata'],
-  ['dresta', 'desa kala patra', 'adat', 'awig', 'denpasar', 'badung', 'karangasem', 'gianyar', 'tabanan', 'klungkung', 'bangli', 'buleleng', 'jembrana', 'perantauan', 'luar bali']
+  ['dresta', 'desa kala patra', 'adat', 'awig', 'denpasar', 'badung', 'karangasem', 'gianyar', 'tabanan', 'klungkung', 'bangli', 'buleleng', 'jembrana', 'perantauan', 'luar bali'],
+  ['libur nasional', 'tanggal merah', 'cuti bersama', 'hari libur', 'lebaran', 'idulfitri', 'idul fitri', 'iduladha', 'idul adha', 'imlek', 'natal', 'waisak', 'paskah', 'isra mikraj', 'maulid', 'pancasila', 'kemerdekaan', 'tahun baru']
 ];
 
 const RAHINAN_KEYWORDS = [
@@ -303,14 +305,61 @@ export function runSmartSearch(rawQuery, dataset) {
       });
     } else if (queryInfo.norm.includes('hari ini')) {
       const todayInfo = getBalineseCalendarInfo(todayIso);
+      const natToday = getNationalHolidaysForDate(todayIso);
+      const natNote = natToday.length ? ` · ${natToday.map((n) => n.name).join(', ')}` : '';
       instantCards.push({
         kind: 'calendar',
-        badge: '📅 Kalender Bali Hari Ini',
+        badge: '📅 Kalender Bali & Nasional Hari Ini',
         title: `${todayInfo.saptaWara} ${todayInfo.pancaWara} · Wuku ${todayInfo.wuku}`,
-        summary: `${todayInfo.sasih} (${todayInfo.penanggal}) · Tahun Saka ${todayInfo.sakaYear} · Urip ${todayInfo.urip}`,
+        summary: `${todayInfo.sasih} (${todayInfo.penanggal}) · Tahun Saka ${todayInfo.sakaYear} · Urip ${todayInfo.urip}${natNote}`,
         actionType: 'open-date',
         targetIso: todayIso,
         actionLabel: 'Buka Detail 10 Wewaran'
+      });
+    }
+  }
+
+  // 1b. Intent: Libur Nasional & Cuti Bersama Indonesia
+  const natKeywords = [
+    { key: 'Imlek', patterns: ['imlek'] },
+    { key: 'Idulfitri', patterns: ['idulfitri', 'idul fitri', 'lebaran'] },
+    { key: 'Iduladha', patterns: ['iduladha', 'idul adha', 'kurban'] },
+    { key: 'Natal', patterns: ['natal'] },
+    { key: 'Waisak', patterns: ['waisak'] },
+    { key: 'Paskah', patterns: ['paskah', 'wafat yesus', 'jumat agung', 'kenaikan yesus'] },
+    { key: 'Isra Mikraj', patterns: ['isra mikraj', 'isra miraj'] },
+    { key: 'Maulid', patterns: ['maulid'] },
+    { key: 'Tahun Baru', patterns: ['tahun baru', 'muharam', 'muharram'] },
+    { key: 'Pancasila', patterns: ['pancasila'] },
+    { key: 'Kemerdekaan', patterns: ['kemerdekaan', '17 agustus', 'proklamasi'] },
+    { key: 'Buruh', patterns: ['hari buruh', 'may day'] }
+  ];
+  const asksNational = /\b(libur nasional|tanggal merah|cuti bersama|hari libur|hari raya nasional|kalender nasional|libur 2026|libur 2027)\b/.test(queryInfo.norm);
+  const matchedNatKw = natKeywords.filter((k) => k.patterns.some((p) => queryInfo.norm.includes(p)));
+
+  if (asksNational || matchedNatKw.length > 0) {
+    const upcomingNat = getUpcomingNationalHolidays(todayIso, 420, true);
+    let hits = upcomingNat;
+    if (matchedNatKw.length > 0) {
+      const pats = matchedNatKw.flatMap((k) => k.patterns);
+      const filtered = upcomingNat.filter((h) => {
+        const hn = normalizeText(h.name);
+        return pats.some((p) => hn.includes(p)) || matchedNatKw.some((k) => hn.includes(k.key.toLowerCase()));
+      });
+      if (filtered.length) hits = filtered;
+    } else if (/\bcuti bersama\b/.test(queryInfo.norm)) {
+      hits = upcomingNat.filter((h) => h.type === 'cuti_bersama');
+    }
+    const topNat = hits.slice(0, 4);
+    if (topNat.length) {
+      instantCards.push({
+        kind: 'calendar',
+        badge: '🇮🇩 Libur Nasional & Cuti Bersama',
+        title: matchedNatKw.length ? `Jadwal ${matchedNatKw[0].key} Terdekat` : 'Libur Nasional & Cuti Bersama Terdekat',
+        summary: topNat.map((h) => `${h.indoDate}: ${h.name} (${h.daysUntil === 0 ? 'HARI INI' : `H-${h.daysUntil}`})`).join(' • '),
+        actionType: 'open-date',
+        targetIso: topNat[0].isoDate,
+        actionLabel: 'Lihat di Kalender'
       });
     }
   }

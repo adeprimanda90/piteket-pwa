@@ -8,6 +8,12 @@ import {
   formatIsoDate
 } from './calendar-engine.js';
 import { evaluateAlaAyuningDewasa, findGoodDaysInMonth } from './dewasa-engine.js';
+import {
+  getNationalHolidaysForDate,
+  getNationalHolidayStatus,
+  getNationalHolidaysInMonth,
+  getUpcomingNationalHolidays
+} from './national-holidays.js';
 import { buildIcsContent, downloadIcsFile } from './ics-export.js';
 import { DEFAULT_CHECKLISTS } from './checklists.js';
 import { AuthApi, getSavedSession, saveSession, getGoogleClientId } from './auth-sync.js';
@@ -662,6 +668,14 @@ function renderCalendar(dateStr) {
   const tagsEl = document.getElementById('cal-tags');
   tagsEl.innerHTML = '';
 
+  const natToday = getNationalHolidaysForDate(iso);
+  natToday.forEach((nh) => {
+    const span = document.createElement('span');
+    span.className = nh.type === 'nasional' ? 'tag tag-nasional' : 'tag tag-cuti';
+    span.textContent = `${nh.type === 'nasional' ? '🇮🇩 Libur Nasional' : '🗓️ Cuti Bersama'}: ${nh.name}`;
+    tagsEl.appendChild(span);
+  });
+
   if (info.rahinan.length) {
     info.rahinan.forEach((r) => {
       const span = document.createElement('span');
@@ -734,20 +748,24 @@ function renderClassicVerticalGrid(monthData) {
       const isSelected = d.isoDate === state.selectedIso;
       const hasMajor = d.rahinanMajor.length > 0 || d.rahinan.some((r) => r.startsWith('Tumpek'));
       const hasKK = d.rahinan.includes('Kajeng Kliwon');
+      const nat = getNationalHolidayStatus(d.isoDate);
+      const natTitle = nat.items.map((x) => x.name).join(' • ');
 
       const dots = [];
+      if (nat.isNasional) dots.push(`<span class="mcal-dot dot-nasional" title="Libur Nasional: ${natTitle}"></span>`);
+      if (nat.isCutiBersama) dots.push(`<span class="mcal-dot dot-cuti" title="Cuti Bersama: ${natTitle}"></span>`);
       if (d.isPurnama) dots.push('<span class="mcal-dot dot-purnama" title="Purnama"></span>');
       if (d.isTilem) dots.push('<span class="mcal-dot dot-tilem" title="Tilem"></span>');
       if (hasMajor) dots.push('<span class="mcal-dot dot-major" title="Hari Raya / Tumpek"></span>');
       if (hasKK) dots.push('<span class="mcal-dot dot-kk" title="Kajeng Kliwon"></span>');
 
       return `
-        <button type="button" class="kb-cell ${isRedite ? 'is-redite' : ''} ${isToday ? 'is-today' : ''} ${isSelected ? 'is-selected' : ''}" data-select-iso="${d.isoDate}">
+        <button type="button" class="kb-cell ${isRedite ? 'is-redite' : ''} ${nat.isNasional ? 'is-nat-holiday' : nat.isCutiBersama ? 'is-cuti-bersama' : ''} ${isToday ? 'is-today' : ''} ${isSelected ? 'is-selected' : ''}" data-select-iso="${d.isoDate}" ${natTitle ? `title="${natTitle}"` : ''}>
           <div class="kb-cell-top">
             <span class="kb-tithi">${d.phaseName === 'Penanggal' ? 'P' : 'Pg'}${d.sasihDay}</span>
             <span class="kb-panca">${d.pancaShort}</span>
           </div>
-          <div class="kb-num ${hasMajor ? 'is-holiday' : ''}">${d.day}</div>
+          <div class="kb-num ${hasMajor || nat.isNasional ? 'is-holiday' : ''}">${d.day}</div>
           <div class="mcal-dots" style="justify-content:center;">${dots.join('')}</div>
         </button>
       `;
@@ -772,19 +790,24 @@ function renderStandardMonthGrid(monthData) {
   const dayCells = monthData.days.map((d) => {
     const isToday = d.isoDate === todayIso;
     const isSelected = d.isoDate === state.selectedIso;
+    const isRedite = d.saptaWara === 'Redite';
     const hasMajor = d.rahinanMajor.length > 0 || d.rahinan.some((r) => r.startsWith('Tumpek'));
     const hasKK = d.rahinan.includes('Kajeng Kliwon');
+    const nat = getNationalHolidayStatus(d.isoDate);
+    const natTitle = nat.items.map((x) => x.name).join(' • ');
 
     const dots = [];
+    if (nat.isNasional) dots.push(`<span class="mcal-dot dot-nasional" title="Libur Nasional: ${natTitle}"></span>`);
+    if (nat.isCutiBersama) dots.push(`<span class="mcal-dot dot-cuti" title="Cuti Bersama: ${natTitle}"></span>`);
     if (d.isPurnama) dots.push('<span class="mcal-dot dot-purnama" title="Purnama"></span>');
     if (d.isTilem) dots.push('<span class="mcal-dot dot-tilem" title="Tilem"></span>');
     if (hasMajor) dots.push('<span class="mcal-dot dot-major" title="Hari Raya / Tumpek"></span>');
     if (hasKK) dots.push('<span class="mcal-dot dot-kk" title="Kajeng Kliwon"></span>');
 
     return `
-      <button type="button" class="mcal-cell ${isToday ? 'is-today' : ''} ${isSelected ? 'is-selected' : ''}" data-select-iso="${d.isoDate}">
+      <button type="button" class="mcal-cell ${nat.isNasional ? 'is-nat-holiday' : nat.isCutiBersama ? 'is-cuti-bersama' : ''} ${isToday ? 'is-today' : ''} ${isSelected ? 'is-selected' : ''}" data-select-iso="${d.isoDate}" ${natTitle ? `title="${natTitle}"` : ''}>
         <div class="mcal-top">
-          <span class="mcal-num">${d.day}</span>
+          <span class="mcal-num ${isRedite || hasMajor || nat.isNasional ? 'is-holiday' : ''}">${d.day}</span>
           <span class="mcal-panca">${d.pancaShort}</span>
         </div>
         <div class="mcal-wuku">${d.wuku}</div>
@@ -810,9 +833,14 @@ function renderStandardMonthGrid(monthData) {
 function renderFase2CalendarTab(container) {
   const monthData = getMonthCalendar(state.calYear, state.calMonth);
   const selectedInfo = getBalineseCalendarInfo(state.selectedIso);
+  const selectedNatHolidays = getNationalHolidaysForDate(state.selectedIso);
+  const monthNatHolidays = getNationalHolidaysInMonth(state.calYear, state.calMonth);
   const dewasaEval = evaluateAlaAyuningDewasa(selectedInfo);
   const goodDays = findGoodDaysInMonth(monthData.days, state.dewasaFinderCat);
-  const upcomingRahinan = getUpcomingRahinan(todayIso, 180, state.rahinanFilter).slice(0, 8);
+  const isNatFilter = state.rahinanFilter === 'NATIONAL';
+  const upcomingRahinan = isNatFilter
+    ? getUpcomingNationalHolidays(todayIso, 365, true).slice(0, 10)
+    : getUpcomingRahinan(todayIso, 180, state.rahinanFilter).slice(0, 8);
   const otonanResult = state.otonanBirthDate ? calculateOtonan(state.otonanBirthDate, todayIso, 3) : null;
   const isLoggedIn = Boolean(state.session && state.session.user);
 
@@ -825,8 +853,8 @@ function renderFase2CalendarTab(container) {
       <section class="f2-panel">
         <div class="mcal-header">
           <div>
-            <h3 class="f2-title">Kalender Bali Lengkap (10 Wewaran & Ala Ayuning Dewasa)</h3>
-            <p class="f2-sub">Pilih tampilan Klasik Cetak Bali (vertikal per Wuku) atau Bulanan. Klik tanggal untuk detail lengkap.</p>
+            <h3 class="f2-title">Kalender Bali &amp; Libur Nasional Indonesia</h3>
+            <p class="f2-sub">10 Wewaran, Ala Ayuning Dewasa, serta Libur Nasional &amp; Cuti Bersama (SKB 3 Menteri 2026–2027). Klik tanggal untuk detail lengkap.</p>
           </div>
           <div class="mcal-nav">
             <button type="button" class="btn btn-outline btn-sm" id="mcal-prev">&larr;</button>
@@ -842,6 +870,8 @@ function renderFase2CalendarTab(container) {
             <button type="button" class="btn btn-sm ${state.calViewMode === 'standard' ? 'btn-primary' : 'btn-outline'}" data-cal-view="standard">Mode Bulanan Standar</button>
           </div>
           <div class="mcal-legend" style="margin:0;">
+            <span><i class="mcal-dot dot-nasional"></i> Libur Nasional</span>
+            <span><i class="mcal-dot dot-cuti"></i> Cuti Bersama</span>
             <span><i class="mcal-dot dot-purnama"></i> Purnama</span>
             <span><i class="mcal-dot dot-tilem"></i> Tilem</span>
             <span><i class="mcal-dot dot-major"></i> Hari Raya / Tumpek</span>
@@ -850,6 +880,23 @@ function renderFase2CalendarTab(container) {
         </div>
 
         ${state.calViewMode === 'classic' ? renderClassicVerticalGrid(monthData) : renderStandardMonthGrid(monthData)}
+
+        ${monthNatHolidays.length ? `
+          <div class="month-holidays-strip">
+            <div class="month-holidays-title">
+              <span>🇮🇩 Libur Nasional &amp; Cuti Bersama — ${monthData.monthName} ${monthData.year}</span>
+              <small>${monthNatHolidays[0].source} · Klik tanggal untuk detail</small>
+            </div>
+            <div class="month-holidays-list">
+              ${monthNatHolidays.map((nh) => `
+                <button type="button" class="month-holiday-chip ${nh.type === 'nasional' ? 'is-nasional' : 'is-cuti'}" data-select-iso="${nh.isoDate}">
+                  <span class="mh-day">${nh.day} ${monthData.monthName.slice(0, 3)}</span>
+                  <span>${nh.name}</span>
+                </button>
+              `).join('')}
+            </div>
+          </div>
+        ` : ''}
 
         <div class="day-detail-box">
           <div class="day-detail-head">
@@ -860,8 +907,9 @@ function renderFase2CalendarTab(container) {
             <span class="tag pill-yadnya">Urip ${selectedInfo.urip} · Ingkel ${selectedInfo.ingkel}</span>
           </div>
 
-          ${selectedInfo.rahinan.length ? `
+          ${(selectedNatHolidays.length || selectedInfo.rahinan.length) ? `
             <div class="cal-tags" style="margin-top:10px;">
+              ${selectedNatHolidays.map((nh) => `<span class="tag ${nh.type === 'nasional' ? 'tag-nasional' : 'tag-cuti'}">${nh.type === 'nasional' ? '🇮🇩 Libur Nasional' : '🗓️ Cuti Bersama'}: ${nh.name}</span>`).join('')}
               ${selectedInfo.rahinan.map((r) => `<span class="tag tag-rahinan">Rahinan: ${r}</span>`).join('')}
             </div>
           ` : ''}
@@ -940,17 +988,41 @@ function renderFase2CalendarTab(container) {
       <section class="f2-panel">
         <div class="mcal-header">
           <div>
-            <h3 class="f2-title">Hitung Mundur Rahinan Terdekat</h3>
-            <p class="f2-sub">Dihitung otomatis 100% offline dari hari ini.</p>
+            <h3 class="f2-title">Hitung Mundur Rahinan &amp; Libur Nasional Terdekat</h3>
+            <p class="f2-sub">Dihitung otomatis 100% offline (Kalender Bali &amp; SKB 3 Menteri 2026–2027).</p>
           </div>
           <div class="rahinan-filters">
-            <button type="button" class="btn btn-sm ${state.rahinanFilter === 'ALL' ? 'btn-primary' : 'btn-outline'}" data-rfilter="ALL">Semua</button>
-            <button type="button" class="btn btn-sm ${state.rahinanFilter === 'MAJOR' ? 'btn-primary' : 'btn-outline'}" data-rfilter="MAJOR">Hari Raya & Tumpek</button>
-            <button type="button" class="btn btn-sm ${state.rahinanFilter === 'LUNAR' ? 'btn-primary' : 'btn-outline'}" data-rfilter="LUNAR">Purnama & Tilem</button>
+            <button type="button" class="btn btn-sm ${state.rahinanFilter === 'ALL' ? 'btn-primary' : 'btn-outline'}" data-rfilter="ALL">Semua Rahinan</button>
+            <button type="button" class="btn btn-sm ${state.rahinanFilter === 'MAJOR' ? 'btn-primary' : 'btn-outline'}" data-rfilter="MAJOR">Hari Raya &amp; Tumpek</button>
+            <button type="button" class="btn btn-sm ${state.rahinanFilter === 'LUNAR' ? 'btn-primary' : 'btn-outline'}" data-rfilter="LUNAR">Purnama &amp; Tilem</button>
+            <button type="button" class="btn btn-sm ${state.rahinanFilter === 'NATIONAL' ? 'btn-primary' : 'btn-outline'}" data-rfilter="NATIONAL">🇮🇩 Libur Nasional</button>
           </div>
         </div>
         <div class="rahinan-list">
           ${upcomingRahinan.map((r) => {
+            if (isNatFilter) {
+              const bInfo = getBalineseCalendarInfo(r.isoDate);
+              const wewLabel = `${bInfo.saptaWara} ${bInfo.pancaWara} Wuku ${bInfo.wuku}`;
+              const rGcal = buildGoogleCalendarUrl(
+                { name: r.name, recur: 'once' },
+                { nextIso: r.isoDate, recur: 'once', subLabel: `${r.type === 'nasional' ? 'Libur Nasional' : 'Cuti Bersama'} · ${wewLabel}`, recurLabel: r.source }
+              );
+              const badgeStyle = r.type === 'nasional'
+                ? 'background:#FDE8EC;color:#A6142C;'
+                : 'background:#E6F2FA;color:#165682;';
+              return `
+              <div class="rahinan-item" data-select-iso="${r.isoDate}">
+                <div class="rahinan-badge ${r.daysUntil === 0 ? 'is-now' : ''}" style="${r.daysUntil === 0 ? '' : badgeStyle}">
+                  ${r.daysUntil === 0 ? 'HARI INI' : `H-${r.daysUntil}`}
+                </div>
+                <div class="rahinan-info" style="flex:1;">
+                  <strong>${r.type === 'nasional' ? '🇮🇩' : '🗓️'} ${r.name}</strong>
+                  <span>${r.indoDate} · ${wewLabel} · ${r.type === 'nasional' ? 'Libur Nasional' : 'Cuti Bersama'}</span>
+                </div>
+                <a class="btn btn-outline btn-sm" href="${rGcal}" target="_blank" rel="noopener" onclick="event.stopPropagation();" title="Tambahkan jadwal ini ke Google Calendar">📅 +GCal</a>
+              </div>
+              `;
+            }
             const rGcal = buildGoogleCalendarUrl(
               { name: r.name, recur: 'once' },
               { nextIso: r.isoDate, recur: 'once', subLabel: r.wewaran, recurLabel: 'Rahinan Bali' }
@@ -1698,10 +1770,20 @@ async function handleFeedbackSubmit(e) {
 
 
 // ======================= MENU INFO (TENTANG, VERSI, TUTORIAL GIF) ============
-const APP_VERSION = 'v1.8.1';
+const APP_VERSION = 'v1.9';
 const CHANGELOG_ENTRIES = [
   {
-    version: 'v1.8.1 (Saat Ini)',
+    version: 'v1.9 (Saat Ini)',
+    date: '22 November 2026',
+    title: 'Kalender Libur Nasional & Cuti Bersama Indonesia (SKB 3 Menteri 2026–2027)',
+    items: [
+      'Menampilkan penanda tanggal merah Libur Nasional (17 hari di 2026 & 18 hari di 2027) dan Cuti Bersama (8 hari per tahun) sesuai SKB 3 Menteri pada Mode Cetak Bali maupun Mode Bulanan Standar.',
+      'Menambahkan ringkasan chip Libur Nasional & Cuti Bersama per bulan tepat di bawah kalender, serta lencana keterangan di panel detail harian dan beranda.',
+      'Menambahkan filter "🇮🇩 Libur Nasional" pada hitung mundur jadwal terdekat (lengkap dengan Wewaran Bali & tombol 1-klik Google Calendar) serta dukungan pencarian pintar untuk jadwal libur nasional.'
+    ]
+  },
+  {
+    version: 'v1.8.1',
     date: '22 November 2026',
     title: 'Pendalaman 21 Artikel Tri Kona, Kartu Intisari Cepat, Tingkatan Nista-Madya-Utama & Topik Banten Baru',
     items: [
