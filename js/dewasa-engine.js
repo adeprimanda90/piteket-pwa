@@ -77,7 +77,7 @@ const RULES = [
   {
     name: "Amerta Gati",
     sifat: "Ayu",
-    tags: ["usaha"],
+    tags: ["usaha", "belanja"],
     desc: "Baik untuk memulai suatu usaha dan bercocok tanam.",
     match: (c) =>
       (c.saptaWara === "Redite" && (isP(c, 3) || isP(c, 6))) ||
@@ -105,7 +105,7 @@ const RULES = [
   {
     name: "Amertayoga",
     sifat: "Ayu",
-    tags: ["usaha", "bangunan"],
+    tags: ["usaha", "belanja", "bangunan"],
     desc: "Baik untuk membangun, mencari nafkah (pengupa jiwa), dan memulai usaha/perusahaan.",
     match: (c) =>
       (c.saptaWara === "Soma" && ["Landep", "Krulut", "Ugu", "Dukut", "Tolu", "Medangsia", "Medangkungan", "Menail"].includes(c.wuku)) ||
@@ -115,7 +115,7 @@ const RULES = [
   {
     name: "Ayu Badra",
     sifat: "Ayu",
-    tags: ["usaha", "bangunan"],
+    tags: ["usaha", "belanja", "bangunan"],
     desc: "Baik untuk memulai usaha, bercocok tanam, dan membangun.",
     match: (c) =>
       (c.saptaWara === "Redite" && isP(c, 3)) ||
@@ -135,7 +135,7 @@ const RULES = [
   {
     name: "Ayu Nulus",
     sifat: "Ayu",
-    tags: ["usaha"],
+    tags: ["usaha", "belanja"],
     desc: "Baik untuk segala usaha.",
     match: (c) =>
       (c.saptaWara === "Redite" && isP(c, 6)) ||
@@ -246,7 +246,7 @@ const RULES = [
   {
     name: "Sedana Yoga",
     sifat: "Ayu",
-    tags: ["usaha"],
+    tags: ["usaha", "belanja"],
     desc: "Baik untuk membuat alat berdagang, tempat usaha, dan mulai berjualan agar murah rezeki.",
     match: (c) =>
       (c.saptaWara === "Redite" && (isDay(c, 8) || c.isPurnama || c.isTilem)) ||
@@ -260,7 +260,7 @@ const RULES = [
   {
     name: "Semut Sedulur",
     sifat: "Ayu",
-    tags: ["usaha"],
+    tags: ["usaha", "belanja"],
     desc: "Baik untuk gotong royang, kerja bakti, dan membentuk perkumpulan. Tidak baik mengubur/membakar mayat.",
     match: (c) =>
       (c.saptaWara === "Sukra" && c.pancaWara === "Pon") ||
@@ -309,7 +309,7 @@ const RULES = [
   {
     name: "Upadana Amerta",
     sifat: "Ayu",
-    tags: ["usaha"],
+    tags: ["usaha", "belanja"],
     desc: "Baik untuk menanam tanaman, membuat alat berdagang, atau mulai berjualan.",
     match: (c) => c.saptaWara === "Redite" && [1, 6, 8, 10].some((d) => isP(c, d))
   },
@@ -373,7 +373,7 @@ const RULES = [
   {
     name: "Kala Mangap",
     sifat: "Ala",
-    tags: ["usaha"],
+    tags: ["usaha", "belanja"],
     desc: "Tidak baik untuk berbelanja karena mengandung sifat boros.",
     match: (c) => c.saptaWara === "Redite" && c.pancaWara === "Umanis"
   },
@@ -465,9 +465,88 @@ const RULES = [
   {
     name: "Uncal Balung",
     sifat: "Ala",
-    tags: ["pawiwahan", "yadnya", "bangunan", "usaha"],
+    tags: ["pawiwahan", "yadnya", "bangunan", "usaha", "belanja", "perjalanan"],
     desc: "Masa 35 hari (Buda Kliwon Dungulan s.d. Buda Kliwon Pahang); tidak baik melakukan pekerjaan/karya penting.",
     match: (c) => c.pawukon >= 73 && c.pawukon <= 108
+  },
+  {
+    name: "Asuasa",
+    sifat: "Ala",
+    tags: ["belanja", "usaha", "pawiwahan", "yadnya"],
+    desc: "Mengandung sifat boros; tidak baik untuk berbelanja, membeli barang/aset, maupun dewasa ayu utama.",
+    match: (c) =>
+      (c.saptaWara === "Redite" && ["Ukir", "Pujut"].includes(c.wuku)) ||
+      (c.saptaWara === "Soma" && c.wuku === "Medangsia") ||
+      (c.saptaWara === "Anggara" && c.wuku === "Wariga") ||
+      (c.saptaWara === "Buda" && c.wuku === "Prangbakat") ||
+      (c.saptaWara === "Wraspati" && c.wuku === "Dungulan") ||
+      (c.saptaWara === "Sukra" && c.wuku === "Kulawu")
+  },
+  {
+    name: "Catur Laba",
+    sifat: "Ayu",
+    tags: ["belanja", "usaha", "perjalanan", "yadnya"],
+    desc: "Baik untuk bepergian (khususnya ke arah utara), transaksi/membeli barang, Manusa Yadnya, dan Pitra Yadnya.",
+    match: (c) =>
+      (c.saptaWara === "Redite" && c.pancaWara === "Umanis") ||
+      (c.saptaWara === "Soma" && c.pancaWara === "Wage") ||
+      (c.saptaWara === "Buda" && c.pancaWara === "Pon") ||
+      (c.saptaWara === "Saniscara" && c.pancaWara === "Paing")
+  },
+  {
+    name: "Amerta Dadi",
+    sifat: "Ayu",
+    tags: ["yadnya", "usaha", "belanja"],
+    desc: "Baik untuk upacara Dewa Yadnya, pemujaan leluhur, dan mengawali kegiatan atau pembelian yang bermanfaat.",
+    match: (c) => (c.saptaWara === "Soma" && c.triWara === "Beteng") || (c.isPurnama && c.triWara === "Kajeng")
+  },
+  {
+    name: "Amerta Danta",
+    sifat: "Ayu",
+    tags: ["belanja", "usaha", "yadnya", "perjalanan"],
+    desc: "Baik untuk penyucian diri, memulai pekerjaan penting, perjalanan, dan transaksi barang.",
+    match: (c) =>
+      c.phaseName === "Penanggal" && (
+        (c.saptaWara === "Redite" && c.sasihDay === 6) ||
+        (c.saptaWara === "Soma" && c.sasihDay === 5) ||
+        (c.saptaWara === "Anggara" && c.sasihDay === 4) ||
+        (c.saptaWara === "Buda" && c.sasihDay === 3) ||
+        (c.saptaWara === "Wraspati" && c.sasihDay === 2) ||
+        (c.saptaWara === "Sukra" && c.sasihDay === 1) ||
+        (c.saptaWara === "Saniscara" && c.sasihDay === 7)
+      )
+  },
+  {
+    name: "Jiwa Menganti",
+    sifat: "Ayu",
+    tags: ["belanja", "usaha", "pertanian"],
+    desc: "Baik untuk memulai usaha, membeli peralatan kerja/barang berguna, dan bercocok tanam.",
+    match: (c) =>
+      (c.saptaWara === "Soma" && c.wuku === "Tambir") ||
+      (c.saptaWara === "Wraspati" && ["Landep", "Medangkungan"].includes(c.wuku)) ||
+      (c.saptaWara === "Sukra" && ["Wariga", "Bala"].includes(c.wuku)) ||
+      (c.saptaWara === "Saniscara" && c.wuku === "Watugunung")
+  },
+  {
+    name: "Derman Bagia",
+    sifat: "Ayu",
+    tags: ["pawiwahan", "bangunan", "perjalanan", "melukat"],
+    desc: "Baik untuk Pawiwahan, membangun, mulai belajar/berlatih, dan perjalanan.",
+    match: (c) => c.saptaWara === "Soma" && c.phaseName === "Penanggal" && [2, 3, 5, 12].includes(c.sasihDay)
+  },
+  {
+    name: "Buda Suka",
+    sifat: "Ayu",
+    tags: ["belanja", "usaha", "perjalanan"],
+    desc: "Baik untuk segala pekerjaan, transaksi, dan memulai aktivitas baru.",
+    match: (c) => c.saptaWara === "Buda" && c.pancaWara === "Kliwon" && c.isTilem
+  },
+  {
+    name: "Sanga Wara Tulus / Dadi",
+    sifat: "Ayu",
+    tags: ["belanja", "perjalanan"],
+    desc: "Dalam prinsip Wariga Bali (Sanga Wara Tulus/Dadi), baik dipakai untuk membeli barang/elektronik/kendaraan atau memulai kegiatan selama tidak terhalang hari Ala (seperti Asuasa/Uncal Balung).",
+    match: (c) => (c.sangaWara === "Tulus" || c.sangaWara === "Dadi") && ["Soma", "Buda", "Wraspati", "Sukra", "Saniscara"].includes(c.saptaWara)
   }
 ];
 

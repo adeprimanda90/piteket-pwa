@@ -53,10 +53,12 @@ const RAHINAN_KEYWORDS = [
 ];
 
 const GOOD_DAY_CATEGORIES = [
-  { cat: 'usaha', label: 'Usaha, Dagang & Membeli Barang/Aset', patterns: ['usaha', 'dagang', 'bisnis', 'toko', 'warung', 'kerja', 'buka', 'beli', 'membeli', 'elektronik', 'kendaraan', 'motor', 'mobil', 'laptop', 'hp'] },
+  { cat: 'belanja', label: 'Membeli Barang, Elektronik & Kendaraan', patterns: ['beli', 'membeli', 'belanja', 'elektronik', 'kendaraan', 'motor', 'mobil', 'laptop', 'hp', 'handphone', 'ponsel', 'komputer', 'gadget', 'barang', 'aset'] },
+  { cat: 'usaha', label: 'Usaha, Dagang & Memulai Kerja', patterns: ['usaha', 'dagang', 'bisnis', 'toko', 'warung', 'kerja', 'buka', 'jualan'] },
   { cat: 'bangunan', label: 'Membangun / Pindah Rumah & Melaspas', patterns: ['rumah', 'bangun', 'membangun', 'pindah', 'melaspas', 'tanah', 'pekarangan'] },
-  { cat: 'upacara', label: 'Upacara / Dewa & Manusa Yadnya', patterns: ['upacara', 'yadnya', 'nikah', 'pawiwahan', 'menikah', 'potong gigi', 'metatah', 'otonan', 'nelubulanin', 'sembahyang'] },
-  { cat: 'pertanian', label: 'Menanam & Pertanian', patterns: ['tanam', 'menanam', 'kebun', 'sawah', 'tani', 'pertanian', 'pohon'] }
+  { cat: 'pawiwahan', label: 'Pawiwahan / Pernikahan', patterns: ['nikah', 'pawiwahan', 'menikah', 'kawin', 'nganten'] },
+  { cat: 'yadnya', label: 'Upacara / Dewa & Pitra Yadnya', patterns: ['upacara', 'yadnya', 'potong gigi', 'metatah', 'otonan', 'nelubulanin', 'sembahyang', 'ngaben', 'odalan', 'piodalan'] },
+  { cat: 'perjalanan', label: 'Bepergian & Memulai Belajar', patterns: ['bepergian', 'pergi', 'berangkat', 'jalan', 'belajar', 'kuliah', 'sekolah', 'melukat'] }
 ];
 
 export function normalizeText(str) {
@@ -217,7 +219,7 @@ export function runSmartSearch(rawQuery, dataset) {
   }
 
   // 2. Intent: Pencari Hari Baik (Dewasa Ayu)
-  const asksGoodDay = /\b(hari baik|dewasa ayu|dewasa|cari hari|tanggal baik|baik untuk)\b/.test(queryInfo.norm);
+  const asksGoodDay = /\b(hari baik|hari terbaik|dewasa ayu|dewasa|cari hari|tanggal baik|tanggal terbaik|baik untuk|membeli|beli)\b/.test(queryInfo.norm);
   if (asksGoodDay) {
     const matchedCat = GOOD_DAY_CATEGORIES.find((c) => c.patterns.some((p) => queryInfo.norm.includes(p))) || GOOD_DAY_CATEGORIES[0];
     const nextY = calMonth === 11 ? calYear + 1 : calYear;

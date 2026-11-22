@@ -83,14 +83,100 @@ function updateRegionBadge() {
   document.getElementById('region-label').textContent = `Domisili: ${state.domisili} · Kawitan: ${state.kawitan}`;
 }
 
+
+const RECUR_LABELS = {
+  pawukon_210: 'Otonan / Odalan Pawukon (tiap 210 hari)',
+  sasih_once: 'Odalan Sasih / Purnama-Tilem (tanpa ulang 210 hari)',
+  yearly: 'Tahunan Masehi (tiap 1 tahun)',
+  once: 'Upacara / Acara Sekali Saja'
+};
+
+function computeReminderNext(item, refIso) {
+  const recur = item.recur || 'pawukon_210';
+  const baseIso = item.birthDate || item.date;
+  if (recur === 'pawukon_210') {
+    const calc = calculateOtonan(baseIso, refIso, 1);
+    const nxt = calc.upcoming[0];
+    return {
+      recur,
+      recurLabel: 'Berulang tiap 210 hari',
+      subLabel: `${calc.wewaran} ${calc.wuku}`,
+      nextIso: nxt.isoDate,
+      nextIndo: nxt.indoDate,
+      daysUntil: nxt.daysUntil,
+      isPast: false
+    };
+  }
+  const [y, m, d] = baseIso.split('-').map(Number);
+  const [ty, tm, td] = refIso.split('-').map(Number);
+  const todayUtc = Date.UTC(ty, tm - 1, td);
+  if (recur === 'yearly') {
+    let targetY = ty;
+    let candUtc = Date.UTC(targetY, m - 1, d);
+    if (candUtc < todayUtc) {
+      targetY += 1;
+      candUtc = Date.UTC(targetY, m - 1, d);
+    }
+    const nextIso = `${targetY}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    const info = getBalineseCalendarInfo(nextIso);
+    return {
+      recur,
+      recurLabel: 'Berulang tiap 1 tahun',
+      subLabel: `${info.saptaWara} ${info.pancaWara} ${info.wuku}`,
+      nextIso,
+      nextIndo: info.indoDate,
+      daysUntil: Math.round((candUtc - todayUtc) / 86400000),
+      isPast: false
+    };
+  }
+  const baseUtc = Date.UTC(y, m - 1, d);
+  const diff = Math.round((baseUtc - todayUtc) / 86400000);
+  const info = getBalineseCalendarInfo(baseIso);
+  return {
+    recur,
+    recurLabel: recur === 'sasih_once' ? 'Odalan Sasih (sekali / cek ulang Sasih berikutnya)' : 'Sekali saja',
+    subLabel: `${info.saptaWara} ${info.pancaWara} ${info.wuku} · ${info.sasih}`,
+    nextIso: baseIso,
+    nextIndo: info.indoDate,
+    daysUntil: diff,
+    isPast: diff < 0
+  };
+}
+
+function buildGoogleCalendarUrl(item, nextInfo) {
+  const iso = nextInfo.nextIso;
+  const [y, m, d] = iso.split('-').map(Number);
+  const startStr = `${y}${String(m).padStart(2, '0')}${String(d).padStart(2, '0')}`;
+  const endDate = new Date(Date.UTC(y, m - 1, d + 1));
+  const endStr = `${endDate.getUTCFullYear()}${String(endDate.getUTCMonth() + 1).padStart(2, '0')}${String(endDate.getUTCDate()).padStart(2, '0')}`;
+
+  const title = item.recur && item.recur !== 'pawukon_210'
+    ? `[Piteket] ${item.name}`
+    : `[Piteket] Otonan / Pawukon: ${item.name}`;
+  const details = `Pengingat dari Piteket PWA (https://piteket-pwa.pages.dev)\nJadwal: ${item.name}\nKalender Bali: ${nextInfo.subLabel}\nJenis Pengulangan: ${nextInfo.recurLabel}`;
+
+  const params = new URLSearchParams({
+    action: 'TEMPLATE',
+    text: title,
+    dates: `${startStr}/${endStr}`,
+    details: details
+  });
+  if (nextInfo.recur === 'pawukon_210') {
+    params.set('recur', 'RRULE:FREQ=DAILY;INTERVAL=210');
+  } else if (nextInfo.recur === 'yearly') {
+    params.set('recur', 'RRULE:FREQ=YEARLY');
+  }
+  return `https://calendar.google.com/calendar/render?${params.toString()}`;
+}
+
 function getNearOtonanAlerts() {
   if (!state.session) return [];
   return state.familyOtonan
     .map((f) => {
-      const calc = calculateOtonan(f.birthDate, todayIso, 1);
-      return { ...f, next: calc.upcoming[0], wewaran: `${calc.wewaran} ${calc.wuku}` };
+      const nxt = computeReminderNext(f, todayIso);
+      return { ...f, isPast: nxt.isPast, next: { daysUntil: nxt.daysUntil, indoDate: nxt.nextIndo }, wewaran: nxt.subLabel };
     })
-    .filter((x) => x.next.daysUntil <= 7)
+    .filter((x) => !x.isPast && x.next.daysUntil >= 0 && x.next.daysUntil <= 7)
     .sort((a, b) => a.next.daysUntil - b.next.daysUntil);
 }
 
@@ -728,11 +814,8 @@ function renderFase2CalendarTab(container) {
   const isLoggedIn = Boolean(state.session && state.session.user);
 
   const savedOtonanSorted = state.familyOtonan
-    .map((entry) => ({
-      ...entry,
-      calc: calculateOtonan(entry.birthDate, todayIso, 1)
-    }))
-    .sort((a, b) => a.calc.upcoming[0].daysUntil - b.calc.upcoming[0].daysUntil);
+    .map((f) => ({ ...f, rem: computeReminderNext(f, todayIso) }))
+    .sort((a, b) => (a.rem.isPast ? 99999 : a.rem.daysUntil) - (b.rem.isPast ? 99999 : b.rem.daysUntil));
 
   container.innerHTML = `
     <div class="fase2-layout">
@@ -827,11 +910,13 @@ function renderFase2CalendarTab(container) {
             <p class="f2-sub">Menyaring tanggal yang memiliki Dewasa Ayu sesuai kebutuhan dan bebas pantangan utama terkait.</p>
           </div>
           <div class="rahinan-filters">
+            <button type="button" class="btn btn-sm ${state.dewasaFinderCat === 'belanja' ? 'btn-primary' : 'btn-outline'}" data-dfcat="belanja">Beli Barang / Elektronik</button>
             <button type="button" class="btn btn-sm ${state.dewasaFinderCat === 'usaha' ? 'btn-primary' : 'btn-outline'}" data-dfcat="usaha">Usaha / Dagang</button>
             <button type="button" class="btn btn-sm ${state.dewasaFinderCat === 'bangunan' ? 'btn-primary' : 'btn-outline'}" data-dfcat="bangunan">Bangunan / Mlaspas</button>
             <button type="button" class="btn btn-sm ${state.dewasaFinderCat === 'yadnya' ? 'btn-primary' : 'btn-outline'}" data-dfcat="yadnya">Dewa / Pitra Yadnya</button>
             <button type="button" class="btn btn-sm ${state.dewasaFinderCat === 'pawiwahan' ? 'btn-primary' : 'btn-outline'}" data-dfcat="pawiwahan">Pawiwahan</button>
-            <button type="button" class="btn btn-sm ${state.dewasaFinderCat === 'melukat' ? 'btn-primary' : 'btn-outline'}" data-dfcat="melukat">Melukat / Belajar</button>
+            <button type="button" class="btn btn-sm ${state.dewasaFinderCat === 'perjalanan' ? 'btn-primary' : 'btn-outline'}" data-dfcat="perjalanan">Bepergian / Belajar</button>
+            <button type="button" class="btn btn-sm ${state.dewasaFinderCat === 'melukat' ? 'btn-primary' : 'btn-outline'}" data-dfcat="melukat">Melukat</button>
           </div>
         </div>
         ${goodDays.length ? `
@@ -880,26 +965,35 @@ function renderFase2CalendarTab(container) {
       <section class="f2-panel" id="otonan-section">
         <div class="mcal-header">
           <div>
-            <h3 class="f2-title">Kalkulator Otonan & Pengingat Langsung di Aplikasi</h3>
-            <p class="f2-sub">Hitung hari lahir Pawukon (tiap 210 hari). Pengguna yang login mendapat sinkronisasi lintas perangkat & pengingat langsung (In-App + Email H-3 & H-1).</p>
+            <h3 class="f2-title">Kalkulator Otonan &amp; Pengingat Jadwal Keluarga</h3>
+            <p class="f2-sub">Simpan Otonan (210 hari), Odalan Pura/Merajan, peringatan tahunan, atau upacara sekali jalan. Pengguna login bebas memilih notifikasi di aplikasi, email (ON/OFF), atau 1-klik ke Google Calendar.</p>
           </div>
           ${isLoggedIn ? `<span class="tag pill-ok" id="sync-status-label">${state.syncStatus || `Tersinkron ke @${state.session.user.username}`}</span>` : ''}
         </div>
 
         <form id="otonan-form" class="otonan-form">
           <div class="form-group" style="margin:0;">
-            <label for="otonan-name">Nama Anggota Keluarga</label>
-            <input type="text" id="otonan-name" placeholder="Contoh: Ajik / Ibu / Gek Ayu" value="${state.otonanName}" />
+            <label for="otonan-name">Nama / Judul Jadwal</label>
+            <input type="text" id="otonan-name" placeholder="Contoh: Otonan Gek Ayu / Odalan Merajan" value="${state.otonanName}" />
           </div>
           <div class="form-group" style="margin:0;">
-            <label for="otonan-birth">Tanggal Lahir Masehi</label>
+            <label for="otonan-birth">Tanggal Lahir / Tanggal Jadwal</label>
             <input type="date" id="otonan-birth" value="${state.otonanBirthDate}" required />
+          </div>
+          <div class="form-group" style="margin:0;">
+            <label for="otonan-recur">Jenis &amp; Pengulangan</label>
+            <select id="otonan-recur">
+              <option value="pawukon_210">Otonan / Odalan Pawukon (tiap 210 hari)</option>
+              <option value="sasih_once">Odalan Sasih / Purnama-Tilem (tanpa ulang 210 hari)</option>
+              <option value="yearly">Tahunan Masehi (tiap 1 tahun)</option>
+              <option value="once">Upacara / Acara Sekali Saja</option>
+            </select>
           </div>
           <div class="otonan-actions">
             <button type="submit" class="btn btn-primary">Hitung Otonan</button>
             ${isLoggedIn
-              ? `<button type="button" class="btn btn-outline" id="save-otonan-btn">+ Simpan & Aktifkan Pengingat</button>`
-              : `<button type="button" class="btn btn-outline" id="login-for-otonan-btn">Masuk untuk Simpan & Pengingat</button>`}
+              ? `<button type="button" class="btn btn-outline" id="save-otonan-btn">+ Simpan Jadwal</button>`
+              : `<button type="button" class="btn btn-outline" id="login-for-otonan-btn">Masuk untuk Simpan &amp; Pengingat</button>`}
           </div>
         </form>
 
@@ -933,25 +1027,34 @@ function renderFase2CalendarTab(container) {
         <div class="family-otonan-wrap">
           ${isLoggedIn ? `
             <div class="reminder-toggle-box">
+              <div style="font-weight:700;margin-bottom:6px;">Pilih Jalur Notifikasi Anda:</div>
+              <div style="font-size:0.82rem;margin-bottom:8px;">• <strong>🔔 Notifikasi Aplikasi:</strong> Aktif otomatis di lonceng &amp; spanduk saat H-7 s.d. Hari H.<br/>• <strong>📅 Google Calendar (1 Klik):</strong> Klik tombol <em>+ Google Calendar</em> pada tiap jadwal di bawah.</div>
               <label>
                 <input type="checkbox" id="toggle-email-reminders" ${state.remindersEnabled ? 'checked' : ''} />
-                <span><strong>Aktifkan Pengingat Otonan Langsung</strong> (Lonceng di aplikasi + Email otomatis H-3, H-1, & Hari H ke <strong>${state.session.user.email}</strong>)</span>
+                <span><strong>✉️ Kirim juga Pengingat Email Harian</strong> (H-3, H-1, &amp; Hari H ke <strong>${state.session.user.email}</strong> — matikan jika tidak ingin email)</span>
               </label>
             </div>
-            <h4 style="margin:12px 0 8px;">Daftar Otonan Tersimpan di Akun @${state.session.user.username} (${savedOtonanSorted.length})</h4>
+            <h4 style="margin:12px 0 8px;">Daftar Jadwal &amp; Otonan Akun @${state.session.user.username} (${savedOtonanSorted.length})</h4>
             ${savedOtonanSorted.length ? `
               <div class="family-otonan-list">
-                ${savedOtonanSorted.map((f) => `
+                ${savedOtonanSorted.map((f) => {
+                  const gcalUrl = buildGoogleCalendarUrl(f, f.rem);
+                  const badgeDays = f.rem.isPast ? 'Sudah lewat' : (f.rem.daysUntil === 0 ? 'HARI INI' : `H-${f.rem.daysUntil}`);
+                  return `
                   <div class="family-otonan-item">
                     <div>
-                      <strong>${f.name}</strong>
-                      <div class="f2-sub">${f.calc.wewaran} ${f.calc.wuku} · Oton berikutnya: <strong>${f.calc.upcoming[0].indoDate}</strong> (${f.calc.upcoming[0].daysUntil === 0 ? 'HARI INI' : `H-${f.calc.upcoming[0].daysUntil}`})</div>
+                      <strong>${f.name}</strong> <span class="tag pill-yadnya" style="font-size:0.7rem;">${f.rem.recurLabel}</span>
+                      <div class="f2-sub">${f.rem.subLabel} · Berikutnya: <strong>${f.rem.nextIndo}</strong> (${badgeDays})</div>
                     </div>
-                    <button type="button" class="btn btn-outline btn-sm" data-del-otonan="${f.id}">Hapus</button>
+                    <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                      <a class="btn btn-outline btn-sm" href="${gcalUrl}" target="_blank" rel="noopener">📅 + Google Calendar</a>
+                      <button type="button" class="btn btn-outline btn-sm" data-del-otonan="${f.id}">Hapus</button>
+                    </div>
                   </div>
-                `).join('')}
+                `;
+                }).join('')}
               </div>
-            ` : `<p class="f2-sub">Belum ada anggota keluarga yang disimpan di akun Anda. Isi nama dan tanggal lahir di atas lalu klik <strong>+ Simpan & Aktifkan Pengingat</strong>.</p>`}
+            ` : `<p class="f2-sub">Belum ada jadwal yang disimpan di akun Anda. Isi nama, tanggal, dan jenis pengulangan di atas lalu klik <strong>+ Simpan Jadwal</strong>.</p>`}
           ` : `
             <div class="auth-gate-box">
               <strong>🔒 Pengingat Otonan & Sinkronisasi Lintas Perangkat (Khusus Akun Login)</strong>
@@ -1042,7 +1145,8 @@ function renderFase2CalendarTab(container) {
       state.otonanName = '';
       state.otonanBirthDate = birthDate;
       localStorage.setItem('piteket_last_otonan_birth', birthDate);
-      state.familyOtonan.push({ id: String(Date.now()), name, birthDate });
+      const recur = (document.getElementById('otonan-recur') && document.getElementById('otonan-recur').value) || 'pawukon_210';
+      state.familyOtonan.push({ id: String(Date.now()), name, birthDate, recur });
       scheduleCloudSync();
       showToast(`Otonan ${name} disimpan & disinkronkan ke akun Anda!`);
       renderContent();
@@ -1453,10 +1557,20 @@ async function handleFeedbackSubmit(e) {
 
 
 // ======================= MENU INFO (TENTANG, VERSI, TUTORIAL GIF) ============
-const APP_VERSION = 'v1.5.2';
+const APP_VERSION = 'v1.6';
 const CHANGELOG_ENTRIES = [
   {
-    version: 'v1.5.2 (Saat Ini)',
+    version: 'v1.6 (Saat Ini)',
+    date: '22 November 2026',
+    title: 'Percepatan AI, Perluasan Database Wariga & Pengingat Fleksibel + Google Calendar 1-Klik',
+    items: [
+      'Mempercepat respons Tanya Piteket AI dengan memprioritaskan Gemini 3.5 Flash-Lite dan cache model aktif di server.',
+      'Menambahkan aturan Wariga otentik di mesin offline (Asuasa, Catur Laba, Amerta Dadi, Amerta Danta, Jiwa Menganti, Derman Bagia, Buda Suka, Sanga Wara Tulus/Dadi) beserta kategori khusus Beli Barang/Elektronik/Kendaraan & Bepergian.',
+      'Menghadirkan Pengingat Keluarga fleksibel (Otonan 210 hari, Odalan Sasih, Tahunan Masehi, atau Sekali Saja) dengan 3 pilihan notifikasi: Aplikasi, Email ON/OFF, dan tombol 1-klik langsung ke Google Calendar.'
+    ]
+  },
+  {
+    version: 'v1.5.2',
     date: '22 November 2026',
     title: 'Menu Info, Tutorial GIF Lengkap & Pencarian Pintar Hybrid (AI)',
     items: [

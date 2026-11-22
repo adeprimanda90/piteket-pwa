@@ -619,17 +619,41 @@ function installDailyOtonanTrigger() {
   SpreadsheetApp.getUi().alert('Pengingat Otonan harian aktif! Sistem akan mengecek daftar Otonan pengguna login setiap hari pukul 07:00 WITA dan mengirim email pengingat H-3, H-1, dan Hari H.');
 }
 
-function daysUntilNextOtonan(birthIso, todayUtcMs) {
-  const parts = String(birthIso || '').split('-').map(Number);
+function daysUntilNextReminder(item, todayUtcMs) {
+  const iso = item.birthDate || item.date || '';
+  const recur = item.recur || 'pawukon_210';
+  const parts = String(iso).split('-').map(Number);
   if (parts.length !== 3) return null;
-  const birthUtc = Date.UTC(parts[0], parts[1] - 1, parts[2]);
-  const diff = Math.round((todayUtcMs - birthUtc) / 86400000);
-  const nextCycle = diff <= 0 ? 1 : Math.ceil(diff / 210);
-  const nextUtc = birthUtc + nextCycle * 210 * 86400000;
+  const baseUtc = Date.UTC(parts[0], parts[1] - 1, parts[2]);
+
+  if (recur === 'pawukon_210') {
+    const diff = Math.round((todayUtcMs - baseUtc) / 86400000);
+    const nextCycle = diff <= 0 ? 1 : Math.ceil(diff / 210);
+    const nextUtc = baseUtc + nextCycle * 210 * 86400000;
+    return {
+      daysUntil: Math.round((nextUtc - todayUtcMs) / 86400000),
+      label: 'Pawukon/Oton ke-' + nextCycle,
+      nextIso: Utilities.formatDate(new Date(nextUtc), 'UTC', 'yyyy-MM-dd')
+    };
+  }
+  if (recur === 'yearly') {
+    const todayDate = new Date(todayUtcMs);
+    let y = todayDate.getUTCFullYear();
+    let cand = Date.UTC(y, parts[1] - 1, parts[2]);
+    if (cand < todayUtcMs) cand = Date.UTC(y + 1, parts[1] - 1, parts[2]);
+    return {
+      daysUntil: Math.round((cand - todayUtcMs) / 86400000),
+      label: 'Tahunan Masehi',
+      nextIso: Utilities.formatDate(new Date(cand), 'UTC', 'yyyy-MM-dd')
+    };
+  }
+  // sasih_once atau once (sekali saja / tanpa pengulangan tetap 210 hari)
+  const diffDays = Math.round((baseUtc - todayUtcMs) / 86400000);
+  if (diffDays < 0) return null;
   return {
-    daysUntil: Math.round((nextUtc - todayUtcMs) / 86400000),
-    otonKe: nextCycle,
-    nextIso: Utilities.formatDate(new Date(nextUtc), 'UTC', 'yyyy-MM-dd')
+    daysUntil: diffDays,
+    label: recur === 'sasih_once' ? 'Odalan Sasih' : 'Jadwal Sekali',
+    nextIso: iso
   };
 }
 
@@ -655,10 +679,10 @@ function kirimPengingatOtonanHarian() {
     const alerts = [];
 
     list.forEach((item) => {
-      const res = daysUntilNextOtonan(item.birthDate, todayUtc);
+      const res = daysUntilNextReminder(item, todayUtc);
       if (res && (res.daysUntil === 3 || res.daysUntil === 1 || res.daysUntil === 0)) {
         const labelHari = res.daysUntil === 0 ? 'HARI INI' : 'H-' + res.daysUntil;
-        alerts.push('• ' + item.name + ' — Oton ke-' + res.otonKe + ' (' + labelHari + ', tanggal ' + res.nextIso + ')');
+        alerts.push('• ' + item.name + ' — ' + res.label + ' (' + labelHari + ', tanggal ' + res.nextIso + ')');
       }
     });
 
@@ -734,11 +758,14 @@ function handleAskAi(body) {
   const contextText = String(body.contextText || '').trim().slice(0, 4800);
   if (!query) return jsonResponse({ ok: false, error: 'Pertanyaan kosong.' });
 
+  const cache = CacheService.getScriptCache();
+  const cachedFastModel = cache.get('PITEKET_FAST_GEMINI_MODEL') || '';
   const configuredModel = String(props.getProperty('GEMINI_MODEL') || '').trim();
-  const defaults = ['gemini-4-hydrogen', 'gemini-3.5-flash-lite', 'gemini-3.8-flash', 'gemini-2.5-flash'];
+  const defaults = ['gemini-3.5-flash-lite', 'gemini-4-hydrogen', 'gemini-3.8-flash', 'gemini-2.5-flash'];
   const tried = {};
   const candidates = [];
   if (configuredModel) candidates.push(configuredModel);
+  if (cachedFastModel && candidates.indexOf(cachedFastModel) === -1) candidates.push(cachedFastModel);
   defaults.forEach((m) => { if (candidates.indexOf(m) === -1) candidates.push(m); });
 
   const promptText =
@@ -770,7 +797,10 @@ function handleAskAi(body) {
       const answer = parsed && parsed.candidates && parsed.candidates[0] &&
         parsed.candidates[0].content && parsed.candidates[0].content.parts &&
         parsed.candidates[0].content.parts[0] && parsed.candidates[0].content.parts[0].text;
-      if (answer) return { ok: true, answer: String(answer).trim(), model: model };
+      if (answer) {
+        try { cache.put('PITEKET_FAST_GEMINI_MODEL', model, 21600); } catch (ce) {}
+        return { ok: true, answer: String(answer).trim(), model: model };
+      }
     }
     let detail = '';
     try {
