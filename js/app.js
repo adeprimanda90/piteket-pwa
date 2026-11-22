@@ -56,8 +56,11 @@ const state = {
   dewasaFinderCat: 'usaha',
   selectedIso: todayIso,
   rahinanFilter: 'ALL',
-  otonanBirthDate: localStorage.getItem('piteket_last_otonan_birth') || '',
+  otonanBirthDate: localStorage.getItem('piteket_last_otonan_birth') || todayIso,
   otonanName: '',
+  reminderCategory: 'otonan',
+  reminderRepeat: true,
+  reminderRecurType: 'pawukon_210',
   familyOtonan: loadJsonStorage('piteket_family_otonan', []),
   // Ceklis
   checklistChecked: loadJsonStorage('piteket_checklist_checked', {}),
@@ -948,17 +951,24 @@ function renderFase2CalendarTab(container) {
           </div>
         </div>
         <div class="rahinan-list">
-          ${upcomingRahinan.map((r) => `
+          ${upcomingRahinan.map((r) => {
+            const rGcal = buildGoogleCalendarUrl(
+              { name: r.name, recur: 'once' },
+              { nextIso: r.isoDate, recur: 'once', subLabel: r.wewaran, recurLabel: 'Rahinan Bali' }
+            );
+            return `
             <div class="rahinan-item" data-select-iso="${r.isoDate}">
               <div class="rahinan-badge ${r.daysUntil === 0 ? 'is-now' : ''}">
                 ${r.daysUntil === 0 ? 'HARI INI' : `H-${r.daysUntil}`}
               </div>
-              <div class="rahinan-info">
+              <div class="rahinan-info" style="flex:1;">
                 <strong>${r.name}</strong>
                 <span>${r.indoDate} · ${r.wewaran}</span>
               </div>
+              <a class="btn btn-outline btn-sm" href="${rGcal}" target="_blank" rel="noopener" onclick="event.stopPropagation();" title="Tambahkan Rahinan ini ke Google Calendar">📅 +GCal</a>
             </div>
-          `).join('')}
+          `;
+          }).join('')}
         </div>
       </section>
 
@@ -973,27 +983,50 @@ function renderFase2CalendarTab(container) {
 
         <form id="otonan-form" class="otonan-form">
           <div class="form-group" style="margin:0;">
-            <label for="otonan-name">Nama / Judul Jadwal</label>
-            <input type="text" id="otonan-name" placeholder="Contoh: Otonan Gek Ayu / Odalan Merajan" value="${state.otonanName}" />
+            <label for="otonan-cat">Kategori Pengingat</label>
+            <select id="otonan-cat">
+              <option value="otonan" ${state.reminderCategory === 'otonan' ? 'selected' : ''}>Otonan Keluarga</option>
+              <option value="odalan_pawukon" ${state.reminderCategory === 'odalan_pawukon' ? 'selected' : ''}>Odalan Pura / Merajan (Pawukon)</option>
+              <option value="odalan_sasih" ${state.reminderCategory === 'odalan_sasih' ? 'selected' : ''}>Odalan Sasih (Purnama / Tilem)</option>
+              <option value="rahinan" ${state.reminderCategory === 'rahinan' ? 'selected' : ''}>Rahinan / Hari Suci Lainnya</option>
+              <option value="upacara" ${state.reminderCategory === 'upacara' ? 'selected' : ''}>Upacara / Acara Khusus</option>
+            </select>
           </div>
           <div class="form-group" style="margin:0;">
-            <label for="otonan-birth">Tanggal Lahir / Tanggal Jadwal</label>
+            <label for="otonan-name">Nama / Judul Jadwal</label>
+            <input type="text" id="otonan-name" placeholder="Contoh: Odalan Merajan Sanggah / Otonan Gek Ayu" value="${state.otonanName}" />
+          </div>
+          <div class="form-group" style="margin:0;">
+            <label for="otonan-birth">Tanggal Lahir / Tanggal Acara</label>
             <input type="date" id="otonan-birth" value="${state.otonanBirthDate}" required />
           </div>
           <div class="form-group" style="margin:0;">
-            <label for="otonan-recur">Jenis &amp; Pengulangan</label>
-            <select id="otonan-recur">
-              <option value="pawukon_210">Otonan / Odalan Pawukon (tiap 210 hari)</option>
-              <option value="sasih_once">Odalan Sasih / Purnama-Tilem (tanpa ulang 210 hari)</option>
-              <option value="yearly">Tahunan Masehi (tiap 1 tahun)</option>
-              <option value="once">Upacara / Acara Sekali Saja</option>
-            </select>
+            <label for="otonan-recur">Pengulangan Pengingat</label>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+              <label style="display:inline-flex;align-items:center;gap:5px;font-weight:500;font-size:0.84rem;margin:0;cursor:pointer;">
+                <input type="checkbox" id="otonan-repeat-toggle" ${state.reminderRepeat ? 'checked' : ''} style="width:auto;" />
+                Berulang
+              </label>
+              <select id="otonan-recur" ${state.reminderRepeat ? '' : 'disabled'} style="flex:1;min-width:170px;">
+                <option value="pawukon_210" ${state.reminderRecurType === 'pawukon_210' ? 'selected' : ''}>Tiap 210 hari (Pawukon)</option>
+                <option value="yearly" ${state.reminderRecurType === 'yearly' ? 'selected' : ''}>Tiap 1 tahun (Masehi)</option>
+              </select>
+            </div>
+            <small style="color:var(--ink-muted);font-size:0.74rem;">${state.reminderRepeat ? 'Pengingat otomatis berulang sesuai pilihan.' : 'Pengingat hanya 1 kali (tidak berulang).'}</small>
           </div>
-          <div class="otonan-actions">
-            <button type="submit" class="btn btn-primary">Hitung Otonan</button>
+          <div class="otonan-actions" style="grid-column:1 / -1;">
+            <button type="submit" class="btn btn-primary">Cek Kalender Bali</button>
             ${isLoggedIn
-              ? `<button type="button" class="btn btn-outline" id="save-otonan-btn">+ Simpan Jadwal</button>`
-              : `<button type="button" class="btn btn-outline" id="login-for-otonan-btn">Masuk untuk Simpan &amp; Pengingat</button>`}
+              ? `<button type="button" class="btn btn-outline" id="save-otonan-btn">+ Simpan ke Akun</button>`
+              : `<button type="button" class="btn btn-outline" id="login-for-otonan-btn">Masuk untuk Simpan ke Akun</button>`}
+            ${(() => {
+              const effRecur = state.reminderRepeat ? state.reminderRecurType : (state.reminderCategory === 'odalan_sasih' ? 'sasih_once' : 'once');
+              const draftTitle = state.otonanName || (state.reminderCategory === 'otonan' ? 'Otonan Keluarga' : 'Pengingat Odalan / Rahinan');
+              const draftIso = state.otonanBirthDate || todayIso;
+              const previewRem = computeReminderNext({ name: draftTitle, birthDate: draftIso, recur: effRecur }, todayIso);
+              const directGcal = buildGoogleCalendarUrl({ name: draftTitle, birthDate: draftIso, recur: effRecur }, previewRem);
+              return `<a class="btn btn-ics" href="${directGcal}" target="_blank" rel="noopener" id="direct-gcal-btn">📅 + Google Calendar (1 Klik)</a>`;
+            })()}
           </div>
         </form>
 
@@ -1133,22 +1166,62 @@ function renderFase2CalendarTab(container) {
     }
   });
 
+  const catSel = document.getElementById('otonan-cat');
+  if (catSel) {
+    catSel.onchange = () => {
+      state.reminderCategory = catSel.value;
+      state.otonanName = document.getElementById('otonan-name').value.trim();
+      state.otonanBirthDate = document.getElementById('otonan-birth').value || todayIso;
+      if (catSel.value === 'otonan' || catSel.value === 'odalan_pawukon') {
+        state.reminderRepeat = true;
+        state.reminderRecurType = 'pawukon_210';
+      } else if (catSel.value === 'odalan_sasih' || catSel.value === 'upacara') {
+        state.reminderRepeat = false;
+      }
+      renderContent();
+    };
+  }
+
+  const repToggle = document.getElementById('otonan-repeat-toggle');
+  if (repToggle) {
+    repToggle.onchange = () => {
+      state.reminderRepeat = repToggle.checked;
+      state.otonanName = document.getElementById('otonan-name').value.trim();
+      state.otonanBirthDate = document.getElementById('otonan-birth').value || todayIso;
+      renderContent();
+    };
+  }
+
+  const recurSel = document.getElementById('otonan-recur');
+  if (recurSel) {
+    recurSel.onchange = () => {
+      state.reminderRecurType = recurSel.value;
+      state.otonanName = document.getElementById('otonan-name').value.trim();
+      state.otonanBirthDate = document.getElementById('otonan-birth').value || todayIso;
+      renderContent();
+    };
+  }
+
   const saveOtonBtn = document.getElementById('save-otonan-btn');
   if (saveOtonBtn) {
     saveOtonBtn.onclick = () => {
       const name = document.getElementById('otonan-name').value.trim();
       const birthDate = document.getElementById('otonan-birth').value;
       if (!name || !birthDate) {
-        showToast('Isi nama dan tanggal lahir dulu sebelum menyimpan.');
+        showToast('Isi nama/judul dan tanggal terlebih dahulu.');
         return;
       }
+      const isRep = document.getElementById('otonan-repeat-toggle') ? document.getElementById('otonan-repeat-toggle').checked : true;
+      const recurVal = document.getElementById('otonan-recur') ? document.getElementById('otonan-recur').value : 'pawukon_210';
+      const catVal = document.getElementById('otonan-cat') ? document.getElementById('otonan-cat').value : 'otonan';
+      const finalRecur = isRep ? recurVal : (catVal === 'odalan_sasih' ? 'sasih_once' : 'once');
+
       state.otonanName = '';
       state.otonanBirthDate = birthDate;
       localStorage.setItem('piteket_last_otonan_birth', birthDate);
-      const recur = (document.getElementById('otonan-recur') && document.getElementById('otonan-recur').value) || 'pawukon_210';
-      state.familyOtonan.push({ id: String(Date.now()), name, birthDate, recur });
+      state.familyOtonan.push({ id: String(Date.now()), name, birthDate, recur: finalRecur, category: catVal });
       scheduleCloudSync();
-      showToast(`Otonan ${name} disimpan & disinkronkan ke akun Anda!`);
+      showToast(`Jadwal "${name}" disimpan & disinkronkan ke akun Anda!`);
       renderContent();
     };
   }
@@ -1557,10 +1630,20 @@ async function handleFeedbackSubmit(e) {
 
 
 // ======================= MENU INFO (TENTANG, VERSI, TUTORIAL GIF) ============
-const APP_VERSION = 'v1.6';
+const APP_VERSION = 'v1.7';
 const CHANGELOG_ENTRIES = [
   {
-    version: 'v1.6 (Saat Ini)',
+    version: 'v1.7 (Saat Ini)',
+    date: '22 November 2026',
+    title: 'Aksi Pengingat Otomatis dari Pencarian/AI, Pilihan Odalan/Rahinan & Tombol Google Calendar Langsung',
+    items: [
+      'Menambahkan deteksi perintah pengingat di Pencarian Pintar & Piteket AI (contoh: "tambahkan pengingat odalan" atau "catat odalan merajan sanggah hari ini") yang langsung mengisi form pengingat beserta kelengkapan Kalender Bali hari tersebut.',
+      'Menampilkan tombol 1-klik "+ Google Calendar" langsung di form pengingat, di setiap kartu Rahinan terdekat, dan di daftar jadwal tersimpan, lengkap dengan pilihan kategori (Otonan, Odalan Pawukon/Sasih, Rahinan, Upacara) serta centang Berulang / Sekali Saja.',
+      'Mengunci Piteket AI langsung ke Gemini 3.5 Flash-Lite agar respons lebih cepat tanpa mencoba model lain.'
+    ]
+  },
+  {
+    version: 'v1.6',
     date: '22 November 2026',
     title: 'Percepatan AI, Perluasan Database Wariga & Pengingat Fleksibel + Google Calendar 1-Klik',
     items: [
@@ -1825,6 +1908,27 @@ function renderSmartSearchPanel() {
         setTimeout(() => {
           const el = document.getElementById('dewasa-finder-section') || document.getElementById('content-area');
           if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 80);
+      } else if (card.actionType === 'prefill-reminder' && card.draft) {
+        const d = card.draft;
+        state.otonanName = d.title;
+        state.otonanBirthDate = d.dateIso;
+        state.reminderCategory = d.category || 'odalan_pawukon';
+        if (d.recommendedRecur === 'pawukon_210' || d.recommendedRecur === 'yearly') {
+          state.reminderRepeat = true;
+          state.reminderRecurType = d.recommendedRecur;
+        } else {
+          state.reminderRepeat = false;
+        }
+        switchTab('kalender');
+        setTimeout(() => {
+          const el = document.getElementById('otonan-section') || document.getElementById('content-area');
+          if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            el.style.boxShadow = '0 0 0 3px #C89B3C';
+            setTimeout(() => { el.style.boxShadow = ''; }, 2400);
+          }
+          showToast(`Form pengingat "${d.title}" sudah diisi otomatis — silakan cek & simpan!`);
         }, 80);
       } else if (card.actionType === 'open-otonan') {
         switchTab('kalender');

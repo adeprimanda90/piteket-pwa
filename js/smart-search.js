@@ -133,6 +133,90 @@ function extractMentionedDateIso(normText) {
   return null;
 }
 
+
+function shiftIsoDate(iso, deltaDays) {
+  const [y, m, d] = iso.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d + deltaDays));
+  return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, '0')}-${String(dt.getUTCDate()).padStart(2, '0')}`;
+}
+
+function detectReminderActionIntent(rawQuery, normText, todayIso) {
+  const hasActionVerb = /\b(tambah|tambahkan|catat|mencatat|buat|buatkan|pasang|simpan|set|atur|ingatkan|pengingat|reminder|jadwal)\b/.test(normText);
+  const hasEventTopic = /\b(odalan|piodalan|otonan|oton|merajan|sanggah|pura|rahinan|upacara|purnama|tilem|galungan|kuningan|pawiwahan|metatah|nelubulanin|ngaben)\b/.test(normText);
+  if (!hasActionVerb || !hasEventTopic) return null;
+
+  // Tentukan tanggal target
+  let targetIso = extractMentionedDateIso(normText);
+  let dateLabel = 'Tanggal terpilih';
+  if (!targetIso) {
+    if (/\b(hari ini|sekarang|now)\b/.test(normText)) {
+      targetIso = todayIso;
+      dateLabel = 'Hari ini';
+    } else if (/\b(besok|esok)\b/.test(normText)) {
+      targetIso = shiftIsoDate(todayIso, 1);
+      dateLabel = 'Besok';
+    } else if (/\b(lusa)\b/.test(normText)) {
+      targetIso = shiftIsoDate(todayIso, 2);
+      dateLabel = 'Lusa';
+    } else {
+      targetIso = todayIso;
+      dateLabel = 'Default hari ini (bisa Anda ubah di form)';
+    }
+  }
+
+  const cal = getBalineseCalendarInfo(targetIso);
+
+  // Tentukan judul rapi dari kalimat pengguna
+  let title = 'Pengingat Jadwal Adat';
+  let category = 'odalan_pawukon';
+  let recommendedRecur = 'pawukon_210';
+  let recurNote = `Berulang tiap 210 hari (Pawukon: ${cal.saptaWara} ${cal.pancaWara} Wuku ${cal.wuku})`;
+
+  if (/\b(odalan|piodalan)\b/.test(normText)) {
+    const mName = rawQuery.match(/(?:odalan|piodalan)\s+([^,.!?]+)/i);
+    let place = mName ? mName[1].replace(/\b(yang|berlangsung|jatuh|pada|hari ini|besok|lusa|di|tanggal).*$/i, '').trim() : '';
+    title = place ? `Odalan ${place.replace(/\b\w/g, (c) => c.toUpperCase())}` : 'Odalan Pura / Merajan';
+    if (cal.isPurnama || cal.isTilem || /\b(purnama|tilem|sasih)\b/.test(normText)) {
+      category = 'odalan_sasih';
+      recommendedRecur = 'sasih_once';
+      recurNote = `Jatuh pada ${cal.isPurnama ? 'Purnama' : cal.isTilem ? 'Tilem' : cal.penanggal} ${cal.sasih} — pilih Odalan Sasih / Sekali Saja, atau Berulang 210 hari jika mengikuti Pawukon (${cal.saptaWara} ${cal.pancaWara} ${cal.wuku})`;
+    }
+  } else if (/\b(otonan|oton)\b/.test(normText)) {
+    const mName = rawQuery.match(/(?:otonan|oton)\s+([^,.!?]+)/i);
+    let person = mName ? mName[1].replace(/\b(yang|berlangsung|jatuh|pada|hari ini|besok|lusa|tanggal).*$/i, '').trim() : '';
+    title = person ? `Otonan ${person}` : 'Otonan Keluarga';
+    category = 'otonan';
+    recommendedRecur = 'pawukon_210';
+  } else if (/\b(galungan|kuningan|nyepi|saraswati|pagerwesi|tumpek|purnama|tilem|rahinan)\b/.test(normText)) {
+    const mR = normText.match(/\b(galungan|kuningan|nyepi|saraswati|pagerwesi|tumpek|purnama|tilem|rahinan)\b/);
+    title = `Rahinan ${mR[1].charAt(0).toUpperCase() + mR[1].slice(1)}`;
+    category = 'rahinan';
+    recommendedRecur = /\b(nyepi|purnama|tilem)\b/.test(mR[1]) ? 'sasih_once' : 'pawukon_210';
+    recurNote = recommendedRecur === 'pawukon_210'
+      ? `Berulang tiap 210 hari (${cal.saptaWara} ${cal.pancaWara} Wuku ${cal.wuku})`
+      : 'Mengikuti kalender Sasih (bisa diset sekali saja agar tidak bergeser)';
+  } else {
+    category = 'upacara';
+    recommendedRecur = 'once';
+    recurNote = 'Sekali saja (tanpa pengulangan), atau aktifkan pengulangan bila diperlukan';
+  }
+
+  if (/\b(sekali|satu kali|tidak berulang|tanpa ulang)\b/.test(normText)) {
+    recommendedRecur = 'once';
+    recurNote = 'Sekali saja (tanpa pengulangan)';
+  }
+
+  return {
+    title,
+    dateIso: targetIso,
+    dateLabel,
+    category,
+    recommendedRecur,
+    recurNote,
+    calendarSummary: `${cal.indoDate} · ${cal.saptaWara} ${cal.pancaWara} · Wuku ${cal.wuku} · Tri Wara ${cal.triWara} · ${cal.sasih} (${cal.penanggal}) · Saka ${cal.sakaYear}${cal.rahinan && cal.rahinan.length ? ` · Rahinan: ${cal.rahinan.join(', ')}` : ''}`
+  };
+}
+
 export function runSmartSearch(rawQuery, dataset) {
   const query = String(rawQuery || '').trim();
   const queryInfo = expandQueryTokens(query);
@@ -153,6 +237,19 @@ export function runSmartSearch(rawQuery, dataset) {
 
   const instantCards = [];
   let birthContext = null;
+  const reminderDraft = detectReminderActionIntent(query, queryInfo.norm, todayIso);
+
+  if (reminderDraft) {
+    instantCards.push({
+      kind: 'reminder-action',
+      badge: '🔔 Aksi Pengingat Siap Pakai',
+      title: `Buat Pengingat: ${reminderDraft.title}`,
+      summary: `${reminderDraft.dateLabel}: ${reminderDraft.calendarSummary}. Rekomendasi pengulangan: ${reminderDraft.recurNote}.`,
+      actionType: 'prefill-reminder',
+      draft: reminderDraft,
+      actionLabel: '📝 Buka & Isi Form Pengingat'
+    });
+  }
 
   // 0. Intent: Tanggal Lahir / Tanggal Spesifik disebut dalam pertanyaan
   const mentionedIso = extractMentionedDateIso(queryInfo.norm);
@@ -374,6 +471,7 @@ export function runSmartSearch(rawQuery, dataset) {
   return {
     query,
     birthContext,
+    reminderDraft,
     instantCards,
     results,
     totalMatches: results.length + instantCards.length
@@ -384,6 +482,15 @@ export function runSmartSearch(rawQuery, dataset) {
 export function buildAiContextPayload(searchOut, dataset) {
   const lines = [];
   lines.push(`Profil pengguna: Domisili ${dataset.domisili}, Asal Kawitan ${dataset.kawitan}. Tanggal hari ini: ${dataset.todayIso}.`);
+
+  if (searchOut && searchOut.reminderDraft) {
+    const rd = searchOut.reminderDraft;
+    lines.push('\n[DRAF PENGINGAT / AKSI SIAP PAKAI]');
+    lines.push(`- Judul yang dideteksi: ${rd.title}`);
+    lines.push(`- Tanggal target (${rd.dateLabel}): ${rd.dateIso}`);
+    lines.push(`- Kelengkapan Kalender Bali pada tanggal tersebut: ${rd.calendarSummary}`);
+    lines.push(`- Rekomendasi pengulangan: ${rd.recurNote} (pengguna bisa memilih Berulang atau Sekali Saja di form Pengingat, serta langsung menambahkannya ke Google Calendar 1-klik).`);
+  }
 
   if (searchOut && searchOut.birthContext) {
     const b = searchOut.birthContext;
