@@ -6,6 +6,8 @@ import {
   calculateOtonan,
   formatIsoDate
 } from './calendar-engine.js';
+import { buildIcsContent, downloadIcsFile } from './ics-export.js';
+import { DEFAULT_CHECKLISTS } from './checklists.js';
 
 const REGIONS = [
   'Denpasar',
@@ -23,11 +25,12 @@ const REGIONS = [
 const nowDate = new Date();
 const todayIso = formatIsoDate(nowDate);
 
-function loadSavedOtonan() {
+function loadJsonStorage(key, fallback) {
   try {
-    return JSON.parse(localStorage.getItem('piteket_family_otonan') || '[]');
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : fallback;
   } catch {
-    return [];
+    return fallback;
   }
 }
 
@@ -42,14 +45,17 @@ const state = {
   dewasa: [],
   glosarium: [],
   activeFeedbackTopic: null,
-  // Fase 2: State Kalender Bulanan, Rahinan & Otonan
+  // Fase 2: Kalender, Rahinan & Otonan
   calYear: nowDate.getFullYear(),
   calMonth: nowDate.getMonth(),
   selectedIso: todayIso,
   rahinanFilter: 'ALL',
   otonanBirthDate: localStorage.getItem('piteket_last_otonan_birth') || '',
   otonanName: '',
-  familyOtonan: loadSavedOtonan()
+  familyOtonan: loadJsonStorage('piteket_family_otonan', []),
+  // Fase 3: Ceklis Persiapan
+  checklistChecked: loadJsonStorage('piteket_checklist_checked', {}),
+  checklistCustom: loadJsonStorage('piteket_checklist_custom', {})
 };
 
 function showToast(msg) {
@@ -125,12 +131,66 @@ function statusClass(s) {
   return (s || '').toLowerCase().includes('terverifikasi') ? 'pill-ok' : 'pill-warn';
 }
 
+function exportRahinanIcs() {
+  const list = getUpcomingRahinan(todayIso, 180, state.rahinanFilter);
+  if (!list.length) {
+    showToast('Tidak ada Rahinan pada filter ini.');
+    return;
+  }
+  const events = list.map((r) => ({
+    isoDate: r.isoDate,
+    summary: `Rahinan: ${r.name}`,
+    description: `${r.name} (${r.wewaran}) — Diekspor dari Piteket PWA (Domisili: ${state.domisili}, Kawitan: ${state.kawitan}).`,
+    alarmDaysBefore: [1]
+  }));
+  const labelMap = { ALL: 'Semua Rahinan', MAJOR: 'Hari Raya & Tumpek', LUNAR: 'Purnama & Tilem' };
+  const ics = buildIcsContent(`Piteket — ${labelMap[state.rahinanFilter] || 'Rahinan'}`, events);
+  downloadIcsFile(`piteket-rahinan-${state.rahinanFilter.toLowerCase()}.ics`, ics);
+  showToast(`File .ics berisi ${events.length} jadwal Rahinan (6 bulan) diunduh!`);
+}
+
+function exportSingleOtonanIcs(name, birthDate) {
+  const calc = calculateOtonan(birthDate, todayIso, 3);
+  const label = name || 'Keluarga';
+  const events = calc.upcoming.map((u) => ({
+    isoDate: u.isoDate,
+    summary: `Otonan ${label} (ke-${u.otonKe}) — ${calc.wewaran} ${calc.wuku}`,
+    description: `Otonan ke-${u.otonKe} untuk ${label} (${calc.wewaran} Wuku ${calc.wuku}, Urip ${calc.urip}, ${u.sasih} ${u.penanggal}). Pengingat H-3 & H-1 dari Piteket PWA.`,
+    alarmDaysBefore: [3, 1]
+  }));
+  const slug = label.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+  const ics = buildIcsContent(`Piteket — Otonan ${label}`, events);
+  downloadIcsFile(`piteket-otonan-${slug}.ics`, ics);
+  showToast(`3 jadwal Otonan ${label} (dengan pengingat H-3 & H-1) diunduh!`);
+}
+
+function exportAllFamilyOtonanIcs() {
+  if (!state.familyOtonan.length) {
+    showToast('Belum ada daftar Otonan keluarga yang disimpan.');
+    return;
+  }
+  const events = [];
+  state.familyOtonan.forEach((f) => {
+    const calc = calculateOtonan(f.birthDate, todayIso, 2);
+    calc.upcoming.forEach((u) => {
+      events.push({
+        isoDate: u.isoDate,
+        summary: `Otonan ${f.name} (ke-${u.otonKe}) — ${calc.wewaran} ${calc.wuku}`,
+        description: `Otonan ke-${u.otonKe} untuk ${f.name} (${calc.wewaran} Wuku ${calc.wuku}, Urip ${calc.urip}, ${u.sasih} ${u.penanggal}).`,
+        alarmDaysBefore: [3, 1]
+      });
+    });
+  });
+  const ics = buildIcsContent('Piteket — Otonan Keluarga', events);
+  downloadIcsFile('piteket-otonan-keluarga.ics', ics);
+  showToast(`File .ics gabungan (${events.length} jadwal Otonan keluarga) diunduh!`);
+}
+
 function renderFase2CalendarTab(container) {
   const monthData = getMonthCalendar(state.calYear, state.calMonth);
   const selectedInfo = getBalineseCalendarInfo(state.selectedIso);
   const upcomingRahinan = getUpcomingRahinan(todayIso, 180, state.rahinanFilter).slice(0, 8);
 
-  // Hitung sel kosong di awal minggu
   const leadingBlanks = Array.from({ length: monthData.firstDow }, () => '<div class="mcal-cell mcal-blank"></div>').join('');
 
   const dayCells = monthData.days.map((d) => {
@@ -168,7 +228,6 @@ function renderFase2CalendarTab(container) {
 
   container.innerHTML = `
     <div class="fase2-layout">
-      <!-- 1. KALENDER BALI BULANAN INTERAKTIF -->
       <section class="f2-panel">
         <div class="mcal-header">
           <div>
@@ -203,7 +262,6 @@ function renderFase2CalendarTab(container) {
           ${leadingBlanks}${dayCells}
         </div>
 
-        <!-- DETAIL TANGGAL TERPILIH + PRATINJAU WARIGA -->
         <div class="day-detail-box">
           <div class="day-detail-head">
             <div>
@@ -234,17 +292,17 @@ function renderFase2CalendarTab(container) {
         </div>
       </section>
 
-      <!-- 2. HITUNG MUNDUR RAHINAN TERDEKAT -->
       <section class="f2-panel">
         <div class="mcal-header">
           <div>
             <h3 class="f2-title">Hitung Mundur Rahinan Terdekat</h3>
-            <p class="f2-sub">Dihitung otomatis 100% offline dari hari ini (${getBalineseCalendarInfo(todayIso).indoDate}).</p>
+            <p class="f2-sub">Dihitung otomatis 100% offline. Bisa diekspor ke Google Calendar / Apple Calendar (.ics).</p>
           </div>
           <div class="rahinan-filters">
             <button type="button" class="btn btn-sm ${state.rahinanFilter === 'ALL' ? 'btn-primary' : 'btn-outline'}" data-rfilter="ALL">Semua</button>
             <button type="button" class="btn btn-sm ${state.rahinanFilter === 'MAJOR' ? 'btn-primary' : 'btn-outline'}" data-rfilter="MAJOR">Hari Raya & Tumpek</button>
             <button type="button" class="btn btn-sm ${state.rahinanFilter === 'LUNAR' ? 'btn-primary' : 'btn-outline'}" data-rfilter="LUNAR">Purnama & Tilem</button>
+            <button type="button" class="btn btn-sm btn-ics" id="export-rahinan-ics">📅 Ekspor .ics (6 Bulan)</button>
           </div>
         </div>
         <div class="rahinan-list">
@@ -262,10 +320,9 @@ function renderFase2CalendarTab(container) {
         </div>
       </section>
 
-      <!-- 3. KALKULATOR OTONAN & DAFTAR OTONAN KELUARGA -->
       <section class="f2-panel">
         <h3 class="f2-title">Kalkulator Otonan & Pengingat Keluarga</h3>
-        <p class="f2-sub">Hitung hari lahir Pawukon (setiap 210 hari) dan simpan daftar Otonan keluarga secara privat di perangkat Anda.</p>
+        <p class="f2-sub">Hitung hari lahir Pawukon (tiap 210 hari), simpan privat di perangkat Anda, dan ekspor pengingat H-3 & H-1 ke Kalender HP.</p>
 
         <form id="otonan-form" class="otonan-form">
           <div class="form-group" style="margin:0;">
@@ -278,7 +335,7 @@ function renderFase2CalendarTab(container) {
           </div>
           <div class="otonan-actions">
             <button type="submit" class="btn btn-primary">Hitung Otonan</button>
-            <button type="button" class="btn btn-outline" id="save-otonan-btn">Simpan ke Daftar Keluarga</button>
+            <button type="button" class="btn btn-outline" id="save-otonan-btn">Simpan ke Keluarga</button>
           </div>
         </form>
 
@@ -290,6 +347,7 @@ function renderFase2CalendarTab(container) {
                 <div class="otonan-main-val">${otonanResult.wewaran} · Wuku ${otonanResult.wuku}</div>
                 <div class="f2-sub">Lahir: ${otonanResult.birthIndo} · Tri Wara ${otonanResult.triWara} · Urip ${otonanResult.urip} · Ingkel ${otonanResult.ingkel}</div>
               </div>
+              <button type="button" class="btn btn-sm btn-ics" id="export-single-otonan-ics">📅 Ekspor 3 Otonan (.ics)</button>
             </div>
             ${otonanResult.isWukuWayang ? `
               <div class="elder-box" style="margin-top:10px;">
@@ -310,7 +368,10 @@ function renderFase2CalendarTab(container) {
         ` : ''}
 
         <div class="family-otonan-wrap">
-          <h4>Daftar Otonan Keluarga Tersimpan (${savedOtonanSorted.length})</h4>
+          <div class="mcal-header" style="margin-bottom:10px;">
+            <h4 style="margin:0;">Daftar Otonan Keluarga Tersimpan (${savedOtonanSorted.length})</h4>
+            ${savedOtonanSorted.length ? `<button type="button" class="btn btn-sm btn-ics" id="export-all-otonan-ics">📅 Ekspor Semua Otonan Keluarga (.ics)</button>` : ''}
+          </div>
           ${savedOtonanSorted.length ? `
             <div class="family-otonan-list">
               ${savedOtonanSorted.map((f) => `
@@ -319,17 +380,19 @@ function renderFase2CalendarTab(container) {
                     <strong>${f.name}</strong>
                     <div class="f2-sub">${f.calc.wewaran} ${f.calc.wuku} · Oton berikutnya: <strong>${f.calc.upcoming[0].indoDate}</strong> (${f.calc.upcoming[0].daysUntil === 0 ? 'HARI INI' : `H-${f.calc.upcoming[0].daysUntil}`})</div>
                   </div>
-                  <button type="button" class="btn btn-outline btn-sm" data-del-otonan="${f.id}">Hapus</button>
+                  <div style="display:flex;gap:6px;">
+                    <button type="button" class="btn btn-outline btn-sm" data-ics-member="${f.id}">.ics</button>
+                    <button type="button" class="btn btn-outline btn-sm" data-del-otonan="${f.id}">Hapus</button>
+                  </div>
                 </div>
               `).join('')}
             </div>
-          ` : `<p class="f2-sub">Belum ada anggota keluarga yang disimpan. Masukkan nama dan tanggal lahir di atas lalu klik <strong>Simpan ke Daftar Keluarga</strong>.</p>`}
+          ` : `<p class="f2-sub">Belum ada anggota keluarga yang disimpan. Masukkan nama dan tanggal lahir di atas lalu klik <strong>Simpan ke Keluarga</strong>.</p>`}
         </div>
       </section>
     </div>
   `;
 
-  // Event bindings khusus tab Kalender & Otonan
   document.getElementById('mcal-prev').onclick = () => {
     state.calMonth -= 1;
     if (state.calMonth < 0) { state.calMonth = 11; state.calYear -= 1; }
@@ -369,8 +432,29 @@ function renderFase2CalendarTab(container) {
     });
   });
 
-  const otonForm = document.getElementById('otonan-form');
-  otonForm.addEventListener('submit', (e) => {
+  document.getElementById('export-rahinan-ics').onclick = exportRahinanIcs;
+
+  const singleIcsBtn = document.getElementById('export-single-otonan-ics');
+  if (singleIcsBtn) {
+    singleIcsBtn.onclick = () => {
+      const nm = document.getElementById('otonan-name').value.trim() || state.otonanName || 'Saya';
+      exportSingleOtonanIcs(nm, state.otonanBirthDate);
+    };
+  }
+
+  const allIcsBtn = document.getElementById('export-all-otonan-ics');
+  if (allIcsBtn) {
+    allIcsBtn.onclick = exportAllFamilyOtonanIcs;
+  }
+
+  container.querySelectorAll('[data-ics-member]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const member = state.familyOtonan.find((x) => x.id === btn.dataset.icsMember);
+      if (member) exportSingleOtonanIcs(member.name, member.birthDate);
+    });
+  });
+
+  document.getElementById('otonan-form').addEventListener('submit', (e) => {
     e.preventDefault();
     state.otonanName = document.getElementById('otonan-name').value.trim();
     state.otonanBirthDate = document.getElementById('otonan-birth').value;
@@ -406,13 +490,118 @@ function renderFase2CalendarTab(container) {
   });
 }
 
+function renderChecklistsTab(container) {
+  container.innerHTML = `
+    <div class="checklist-grid">
+      ${DEFAULT_CHECKLISTS.map((chk) => {
+        const customItems = state.checklistCustom[chk.id] || [];
+        const allItems = [
+          ...chk.items.map((text, idx) => ({ key: `${chk.id}-d-${idx}`, text, isCustom: false })),
+          ...customItems.map((text, idx) => ({ key: `${chk.id}-c-${idx}`, text, isCustom: true, customIdx: idx }))
+        ];
+        const doneCount = allItems.filter((it) => state.checklistChecked[it.key]).length;
+        const pct = allItems.length ? Math.round((doneCount / allItems.length) * 100) : 0;
+
+        return `
+          <article class="f2-panel chk-card">
+            <div class="card-meta">
+              <span class="tag ${cycleClass(chk.siklus)}">${chk.siklus}</span>
+              <span class="tag pill-ok">${doneCount}/${allItems.length} selesai (${pct}%)</span>
+            </div>
+            <div class="card-aksara aksara">${chk.aksara}</div>
+            <h3 class="f2-title" style="margin-top:2px;">${chk.title}</h3>
+            <p class="f2-sub">${chk.summary}</p>
+            <div class="chk-progress"><div class="chk-progress-bar" style="width:${pct}%"></div></div>
+            <div class="chk-dresta"><em>Desa Kala Patra:</em> ${chk.drestaNote}</div>
+
+            <ul class="chk-list">
+              ${allItems.map((it) => `
+                <li class="chk-row ${state.checklistChecked[it.key] ? 'is-done' : ''}">
+                  <label>
+                    <input type="checkbox" data-chk-toggle="${it.key}" ${state.checklistChecked[it.key] ? 'checked' : ''} />
+                    <span>${it.text}</span>
+                  </label>
+                  ${it.isCustom ? `<button type="button" class="chk-del-btn" data-chk-del="${chk.id}" data-chk-idx="${it.customIdx}" title="Hapus catatan">&times;</button>` : ''}
+                </li>
+              `).join('')}
+            </ul>
+
+            <form class="chk-add-form" data-chk-add="${chk.id}">
+              <input type="text" placeholder="Tambah catatan khusus keluarga (mis. banten kawitan)..." required />
+              <button type="submit" class="btn btn-outline btn-sm">+ Tambah</button>
+            </form>
+
+            <div class="card-actions" style="margin-top:10px;">
+              <button type="button" class="btn btn-outline btn-sm" data-chk-reset="${chk.id}">Reset Centang</button>
+              <button type="button" class="btn btn-outline btn-sm" data-feedback-id="${chk.id}" data-feedback-tab="Ceklis_Persiapan" data-feedback-title="${chk.title}">Koreksi / Beri Piteket</button>
+            </div>
+          </article>
+        `;
+      }).join('')}
+    </div>
+  `;
+
+  container.querySelectorAll('[data-chk-toggle]').forEach((cb) => {
+    cb.addEventListener('change', () => {
+      const k = cb.dataset.chkToggle;
+      if (cb.checked) state.checklistChecked[k] = true;
+      else delete state.checklistChecked[k];
+      localStorage.setItem('piteket_checklist_checked', JSON.stringify(state.checklistChecked));
+      renderContent();
+    });
+  });
+
+  container.querySelectorAll('[data-chk-add]').forEach((form) => {
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const id = form.dataset.chkAdd;
+      const input = form.querySelector('input');
+      const val = input.value.trim();
+      if (!val) return;
+      if (!state.checklistCustom[id]) state.checklistCustom[id] = [];
+      state.checklistCustom[id].push(val);
+      localStorage.setItem('piteket_checklist_custom', JSON.stringify(state.checklistCustom));
+      showToast('Catatan pribadi ditambahkan ke ceklis.');
+      renderContent();
+    });
+  });
+
+  container.querySelectorAll('[data-chk-del]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.chkDel;
+      const idx = Number(btn.dataset.chkIdx);
+      if (state.checklistCustom[id]) {
+        state.checklistCustom[id].splice(idx, 1);
+        localStorage.setItem('piteket_checklist_custom', JSON.stringify(state.checklistCustom));
+        renderContent();
+      }
+    });
+  });
+
+  container.querySelectorAll('[data-chk-reset]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.chkReset;
+      Object.keys(state.checklistChecked).forEach((k) => {
+        if (k.startsWith(id + '-')) delete state.checklistChecked[k];
+      });
+      localStorage.setItem('piteket_checklist_checked', JSON.stringify(state.checklistChecked));
+      showToast('Centang ceklis di-reset.');
+      renderContent();
+    });
+  });
+}
+
 function renderContent() {
   const container = document.getElementById('content-area');
   const controlsBar = document.getElementById('controls-bar');
-  controlsBar.style.display = state.tab === 'kalender' ? 'none' : 'flex';
+  controlsBar.style.display = (state.tab === 'kalender' || state.tab === 'ceklis') ? 'none' : 'flex';
 
   if (state.tab === 'kalender') {
     renderFase2CalendarTab(container);
+    return;
+  }
+  if (state.tab === 'ceklis') {
+    renderChecklistsTab(container);
     return;
   }
 

@@ -1,9 +1,11 @@
-const CACHE_NAME = 'piteket-pwa-v5';
+const CACHE_NAME = 'piteket-pwa-v6';
 const STATIC_ASSETS = [
   '/',
   '/css/styles.css',
   '/js/app.js',
   '/js/calendar-engine.js',
+  '/js/ics-export.js',
+  '/js/checklists.js',
   '/manifest.json',
   '/icons/icon.svg'
 ];
@@ -28,7 +30,6 @@ self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET') return;
 
-  // Navigasi halaman: Network-first, hindari menyimpan respons redirect (Cloudflare Pages 308)
   if (req.mode === 'navigate') {
     event.respondWith(
       fetch(req)
@@ -44,7 +45,6 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Data JSON & config.js: Network-first agar pembaruan CMS Google Sheet langsung muncul
   if (req.url.includes('/data/') || req.url.includes('/js/config.js')) {
     event.respondWith(
       fetch(req)
@@ -60,7 +60,6 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Aset statis: Cache-first dengan fallback network
   event.respondWith(
     caches.match(req).then((cached) => {
       if (cached) return cached;
