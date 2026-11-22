@@ -1,0 +1,62 @@
+[
+  {
+    "id": "dws-01",
+    "nama_dewasa": "Dewasa Ayu (Prinsip Umum)",
+    "kategori": "Dasar Wariga",
+    "sifat": "Ayu",
+    "arti_ringkas": "Hari baik berdasarkan perpaduan Wewaran, Wuku, Penanggal/Pangelong, dan Sasih dalam ilmu Wariga Bali.",
+    "cocok_untuk": "Memulai kegiatan penting, pekerjaan, dan yadnya sesuai kecocokan jenis dewanya.",
+    "hindari_untuk": "Menganggap satu hari 'baik untuk segala hal' tanpa mengecek pantangan spesifik (Ala Ayuning Dewasa).",
+    "catatan_wariga": "Perhitungan kalender dasar bersifat matematis, namun penetapan Dewasa Ayu untuk upacara besar (Pawiwahan, Ngaben, Mlaspas) wajib dikonsultasikan ke Sulinggih atau ahli Wariga.",
+    "sumber_referensi": "https://github.com/SHA888/balinese-calendar",
+    "status_verifikasi": "Terverifikasi Keluarga"
+  },
+  {
+    "id": "dws-02",
+    "nama_dewasa": "Ayu Dana / Amerta Dewa",
+    "kategori": "Sosial & Usaha",
+    "sifat": "Ayu",
+    "arti_ringkas": "Hari yang dipandang membawa kebaikan untuk memberi, berbagi, dan membangun hubungan baik.",
+    "cocok_untuk": "Berdana punia, memulai kerja sama, kegiatan sosial, atau memulai usaha sederhana.",
+    "hindari_untuk": "Tetap cek apakah bertepatan dengan Kala/Ingkel yang melarang kegiatan tertentu.",
+    "catatan_wariga": "Umum muncul pada kalender Bali cetak; baik dijadikan acuan awal untuk aktivitas harian/usaha sebelum konsultasi lebih dalam.",
+    "sumber_referensi": "https://github.com/peradnya/balinese-date-js-lib",
+    "status_verifikasi": "Menunggu Review Tetua"
+  },
+  {
+    "id": "dws-03",
+    "nama_dewasa": "Subacara",
+    "kategori": "Upacara & Rencana Baik",
+    "sifat": "Ayu",
+    "arti_ringkas": "Hari yang umumnya baik untuk melangsungkan upacara baik dan merencanakan pekerjaan positif.",
+    "cocok_untuk": "Merencanakan kegiatan baik, memperbaiki rumah ringan, atau upacara Manusa Yadnya tertentu.",
+    "hindari_untuk": "Jangan langsung dipakai untuk Pawiwahan tanpa mengecek Sasih dan Wuku (misalnya larangan Rangda Tiga/Tanpa Guru).",
+    "catatan_wariga": "Selalu padukan dengan pemeriksaan Sasih (bulan Bali) dan Wuku keluarga.",
+    "sumber_referensi": "https://github.com/peradnya/balinese-date-js-lib",
+    "status_verifikasi": "Menunggu Review Tetua"
+  },
+  {
+    "id": "dws-04",
+    "nama_dewasa": "Kala Gotongan / Kala Pati",
+    "kategori": "Peringatan (Ala)",
+    "sifat": "Ala",
+    "arti_ringkas": "Indikator hari kurang baik untuk kegiatan tertentu yang berkaitan dengan perjalanan jauh, memulai proyek, atau upacara tertentu.",
+    "cocok_untuk": "Evaluasi diri, pekerjaan rutin biasa, dan tidak terburu-buru mengambil keputusan besar.",
+    "hindari_untuk": "Memulai upacara besar Manusa Yadnya atau memindahkan benda sakral tanpa petunjuk Sulinggih.",
+    "catatan_wariga": "Di Bali, hari 'Ala' bukan berarti sial total, melainkan sinyal kehati-hatian agar memilih waktu yang lebih selaras.",
+    "sumber_referensi": "https://github.com/SHA888/balinese-calendar",
+    "status_verifikasi": "Menunggu Review Tetua"
+  },
+  {
+    "id": "dws-05",
+    "nama_dewasa": "Kajeng Kliwon, Purnama & Tilem (Rahinan)",
+    "kategori": "Rahinan Rutin",
+    "sifat": "Ayu",
+    "arti_ringkas": "Hari suci rutin setiap 15 hari (Kajeng Kliwon, Purnama saat bulan penuh, Tilem saat bulan mati).",
+    "cocok_untuk": "Sembahyang di Merajan/Pura, menghaturkan canang/pejati, refleksi batin, dan melukat.",
+    "hindari_untuk": "Mengabaikan kesucian pikiran dan ucapan; hindari konflik rumah tangga.",
+    "catatan_wariga": "Sangat mudah diikuti oleh keluarga muda sebagai jangkar ritme spiritual setiap dua minggu.",
+    "sumber_referensi": "https://journal.mpukuturan.ac.id/index.php/swarawidya/article/download/615/386/1002",
+    "status_verifikasi": "Terverifikasi Keluarga"
+  }
+]

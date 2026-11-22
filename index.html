@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#8C3B2B" />
+  <title>Piteket — Panduan Belajar Hidup Orang Bali</title>
+  <link rel="manifest" href="./manifest.json" />
+  <link rel="icon" href="./icons/icon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Balinese:wght@400;600&family=Noto+Serif+Balinese&family=Playfair+Display:wght@600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./css/styles.css" />
+  <!-- Kalender Bali Open Source Engine (otomatis fallback offline jika tidak ada sinyal) -->
+  <script defer src="https://unpkg.com/balinese-date-js-lib/dist/balinese-date-js-lib.min.js"></script>
+</head>
+<body>
+  <header class="hero">
+    <div class="container">
+      <div class="hero-top">
+        <div>
+          <span class="brand-aksara aksara">ᬧᬶᬢᭂᬓᭂᬢ᭄</span>
+          <h1 class="brand-title">Piteket</h1>
+          <p class="brand-sub">Teman belajar hidup sebagai orang Bali — merangkum siklus <strong>Tri Kona</strong> (Utpatti · Sthiti · Pralina), Panca Yadnya, dan Kalender Bali.</p>
+          <span class="region-pill" id="region-label">Kawitan Karangasem · Domisili Denpasar & Badung</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="humility-banner" aria-label="Catatan Kerendahan Hati">
+      <strong>Catatan Belajar Keluarga (Nunas Piteket):</strong> Aplikasi ini bukan kitab aturan baku adat Bali. Setiap desa adat memiliki <em>Desa Kala Patra</em> dan <em>awig-awig</em> masing-masing. Masukan dan koreksi dari orang tua, panglingsir, serta Jero Mangku sangat kami harapkan lewat tombol <strong>Beri Piteket</strong> di setiap topik.
+    </section>
+
+    <section class="calendar-card" aria-label="Kalender Bali">
+      <div class="calendar-head">
+        <h2>Kalender Bali Hari Ini</h2>
+        <input type="date" id="date-picker" class="date-input" aria-label="Pilih tanggal" />
+      </div>
+      <div class="cal-grid">
+        <div class="cal-cell">
+          <div class="cal-label">Sapta & Panca Wara</div>
+          <div class="cal-val" id="cal-wewaran">—</div>
+        </div>
+        <div class="cal-cell">
+          <div class="cal-label">Tri Wara & Urip</div>
+          <div class="cal-val" id="cal-triwara">—</div>
+        </div>
+        <div class="cal-cell">
+          <div class="cal-label">Wuku & Ingkel</div>
+          <div class="cal-val" id="cal-wuku">—</div>
+        </div>
+        <div class="cal-cell">
+          <div class="cal-label">Sasih</div>
+          <div class="cal-val" id="cal-sasih">—</div>
+        </div>
+        <div class="cal-cell">
+          <div class="cal-label">Tahun Saka</div>
+          <div class="cal-val" id="cal-saka">—</div>
+        </div>
+      </div>
+      <div class="cal-tags" id="cal-tags"></div>
+    </section>
+
+    <nav class="tabs" role="tablist">
+      <button class="tab-btn active" data-tab="panduan">Siklus Tri Kona</button>
+      <button class="tab-btn" data-tab="dewasa">Dewasa Ayu & Wariga</button>
+      <button class="tab-btn" data-tab="aksara">Glosarium Aksara Bali</button>
+    </nav>
+
+    <div class="controls-bar">
+      <input type="search" id="search-input" class="search-input" placeholder="Cari topik: bayi, cuntaka, melayat, pawiwahan, melukat..." />
+      <select id="cycle-filter" class="filter-select" aria-label="Filter Siklus Tri Kona">
+        <option value="ALL">Semua Siklus (Tri Kona)</option>
+        <option value="Utpatti">Utpatti (Lahir · Brahma)</option>
+        <option value="Sthiti">Sthiti (Hidup · Wisnu)</option>
+        <option value="Pralina">Pralina (Kembali · Siwa)</option>
+      </select>
+    </div>
+
+    <section id="content-area" aria-live="polite"></section>
+  </main>
+
+  <!-- Detail Guide Modal -->
+  <div class="modal-backdrop" id="detail-modal" role="dialog" aria-modal="true">
+    <div class="modal-box">
+      <div class="modal-header">
+        <div>
+          <div id="detail-aksara" class="aksara" style="color:#8C3B2B;font-size:1.25rem;"></div>
+          <h3 id="detail-title" style="margin:2px 0 0;"></h3>
+        </div>
+        <button class="modal-close" data-close-modal="detail-modal" aria-label="Tutup">&times;</button>
+      </div>
+      <div id="detail-body"></div>
+    </div>
+  </div>
+
+  <!-- Family Feedback Modal -->
+  <div class="modal-backdrop" id="feedback-modal" role="dialog" aria-modal="true">
+    <div class="modal-box">
+      <div class="modal-header">
+        <div>
+          <h3 style="margin:0;">Kirim Piteket / Koreksi Keluarga</h3>
+          <p id="fb-topic-display" style="margin:4px 0 0;font-size:0.85rem;color:#66584D;"></p>
+        </div>
+        <button class="modal-close" data-close-modal="feedback-modal" aria-label="Tutup">&times;</button>
+      </div>
+      <form id="feedback-form">
+        <div class="form-group">
+          <label for="fb-name">Nama Anda</label>
+          <input id="fb-name" type="text" placeholder="Contoh: Ajik / Ibu / Bli Made" required />
+        </div>
+        <div class="form-group">
+          <label for="fb-relation">Hubungan Keluarga</label>
+          <select id="fb-relation">
+            <option value="Orang Tua / Panglingsir">Orang Tua / Panglingsir</option>
+            <option value="Saudara / Semeton">Saudara / Semeton</option>
+            <option value="Jero Mangku / Tetua Adat">Jero Mangku / Tetua Adat</option>
+            <option value="Lainnya">Lainnya</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="fb-dresta">Konteks Dresta / Daerah</label>
+          <select id="fb-dresta">
+            <option value="Denpasar / Badung">Denpasar / Badung</option>
+            <option value="Karangasem (Kawitan)">Karangasem (Kawitan)</option>
+            <option value="Keduanya / Umum">Keduanya / Umum</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="fb-text">Piteket, Koreksi, atau Tambahan Catatan</label>
+          <textarea id="fb-text" rows="4" placeholder="Tulis koreksi banten, lama cuntaka, atau kebiasaan di keluarga kita..." required></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary" style="width:100%;">Kirim Piteket</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <footer>
+    Piteket · Catatan Belajar Hidup Orang Bali (Phase 1) · Sumber kalender oleh <a href="https://github.com/peradnya/balinese-date-js-lib" target="_blank" rel="noopener">balinese-date-js-lib</a> · Aksara oleh <a href="https://fonts.google.com/noto/specimen/Noto+Serif+Balinese" target="_blank" rel="noopener">Noto Balinese</a>.
+  </footer>
+
+  <script type="module" src="./js/app.js"></script>
+</body>
+</html>

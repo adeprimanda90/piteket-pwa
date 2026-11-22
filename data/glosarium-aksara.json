@@ -1,0 +1,82 @@
+[
+  {
+    "id": "gls-01",
+    "istilah_bali": "Piteket",
+    "aksara_bali_unicode": "ᬧᬶᬢᭂᬓᭂᬢ᭄",
+    "pelafalan": "Pi-te-ket",
+    "kategori": "Etika & Bahasa",
+    "arti_indonesia": "Nasihat, petuah, atau arahan bijak dari orang tua/tetua.",
+    "contoh_penggunaan": "Titiang nunas piteket saking panglingsir.",
+    "status_verifikasi": "Menunggu Review Tetua"
+  },
+  {
+    "id": "gls-02",
+    "istilah_bali": "Utpatti",
+    "aksara_bali_unicode": "ᬉᬢ᭄ᬧᬢ᭄ᬢᬶ",
+    "pelafalan": "Ut-pat-ti",
+    "kategori": "Tri Kona",
+    "arti_indonesia": "Penciptaan / kelahiran (manifestasi Dewa Brahma).",
+    "contoh_penggunaan": "Fase Utpatti mencakup persiapan kelahiran hingga Otonan.",
+    "status_verifikasi": "Menunggu Review Tetua"
+  },
+  {
+    "id": "gls-03",
+    "istilah_bali": "Sthiti",
+    "aksara_bali_unicode": "ᬲ᭄ᬣᬶᬢᬶ",
+    "pelafalan": "Sthi-ti",
+    "kategori": "Tri Kona",
+    "arti_indonesia": "Pemeliharaan / menjalani kehidupan (manifestasi Dewa Wisnu).",
+    "contoh_penggunaan": "Pawiwahan dan menjaga harmoni keluarga ada di fase Sthiti.",
+    "status_verifikasi": "Menunggu Review Tetua"
+  },
+  {
+    "id": "gls-04",
+    "istilah_bali": "Pralina",
+    "aksara_bali_unicode": "ᬧ᭄ᬭᬮᬶᬦ",
+    "pelafalan": "Pra-li-na",
+    "kategori": "Tri Kona",
+    "arti_indonesia": "Peleburan / kembali ke asal (manifestasi Dewa Siwa).",
+    "contoh_penggunaan": "Pitra Yadnya menghormati perjalanan Atman pada fase Pralina.",
+    "status_verifikasi": "Menunggu Review Tetua"
+  },
+  {
+    "id": "gls-05",
+    "istilah_bali": "Desa Kala Patra",
+    "aksara_bali_unicode": "ᬤᬾᬰᬓᬮᬧᬢ᭄ᬭ",
+    "pelafalan": "De-sa Ka-la Pa-tra",
+    "kategori": "Adat & Prinsip",
+    "arti_indonesia": "Penyesuaian adat berdasarkan tempat, waktu, dan keadaan.",
+    "contoh_penggunaan": "Beda Karangasem dan Denpasar itu wajar karena Desa Kala Patra.",
+    "status_verifikasi": "Terverifikasi Keluarga"
+  },
+  {
+    "id": "gls-06",
+    "istilah_bali": "Dewasa Ayu",
+    "aksara_bali_unicode": "ᬤᬾᬯᬲᬅᬬᬸ",
+    "pelafalan": "De-wa-sa A-yu",
+    "kategori": "Wariga",
+    "arti_indonesia": "Hari baik yang selaras menurut perhitungan Wariga Bali.",
+    "contoh_penggunaan": "Keluarga mencari Dewasa Ayu untuk upacara Pawiwahan.",
+    "status_verifikasi": "Terverifikasi Keluarga"
+  },
+  {
+    "id": "gls-07",
+    "istilah_bali": "Cuntaka / Sebel",
+    "aksara_bali_unicode": "ᬘᬸᬦ᭄ᬢᬓ",
+    "pelafalan": "Cun-ta-ka",
+    "kategori": "Adat & Etika",
+    "arti_indonesia": "Masa ketidaksuci-an ritual sementara (kematian, kelahiran, haid).",
+    "contoh_penggunaan": "Saat sedang cuntaka, kita menunda sembahyang ke Pura.",
+    "status_verifikasi": "Menunggu Review Tetua"
+  },
+  {
+    "id": "gls-08",
+    "istilah_bali": "Tri Hita Karana",
+    "aksara_bali_unicode": "ᬢ᭄ᬭᬶᬳᬶᬢᬓᬭᬡ",
+    "pelafalan": "Tri Hi-ta Ka-ra-na",
+    "kategori": "Filosofi",
+    "arti_indonesia": "Tiga penyebab keharmonisan: Parahyangan, Pawongan, Palemahan.",
+    "contoh_penggunaan": "Menyama braya adalah wujud nyata Pawongan.",
+    "status_verifikasi": "Terverifikasi Keluarga"
+  }
+]
