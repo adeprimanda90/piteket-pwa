@@ -1228,3 +1228,149 @@ footer {
 
 .dewasa-col-head.is-ayu { background: var(--ok-bg); color: var(--ok-ink); }
 .dewasa-col-head.is-ala { background: #FCEAE6; color: #8C3B2B; }
+
+/* ================= TAHAP B: AKUN PENGGUNA & PENGINGAT OTONAN ================= */
+.auth-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-hero-auth {
+  background: #FAF6F0;
+  color: #6D2B1E;
+  border: none;
+  border-radius: 999px;
+  padding: 9px 16px;
+  font-family: inherit;
+  font-weight: 700;
+  font-size: 0.85rem;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.14);
+}
+
+.btn-hero-auth:hover { background: #FFF; }
+
+.auth-user-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(250, 246, 240, 0.16);
+  border: 1px solid rgba(244, 223, 200, 0.4);
+  padding: 6px 10px 6px 14px;
+  border-radius: 999px;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: #FAF6F0;
+}
+
+.btn-hero-bell {
+  position: relative;
+  background: rgba(255,255,255,0.18);
+  border: none;
+  border-radius: 999px;
+  padding: 4px 9px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: #FFF;
+}
+
+.bell-count {
+  display: inline-block;
+  margin-left: 3px;
+  background: #E03E2D;
+  color: #FFF;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 999px;
+}
+
+.btn-hero-logout {
+  background: rgba(255,255,255,0.2);
+  color: #FFF;
+  border: none;
+  border-radius: 999px;
+  padding: 5px 11px;
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.otonan-alert-banner {
+  background: #FCEAE6;
+  border: 1px solid #E5B2A8;
+  border-left: 4px solid var(--primary);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  margin: 16px 0 0;
+  font-size: 0.88rem;
+  color: #5E2115;
+}
+
+.auth-msg {
+  font-size: 0.84rem;
+  color: var(--primary);
+  margin-bottom: 10px;
+  min-height: 18px;
+}
+
+.auth-links {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.link-btn {
+  background: none;
+  border: none;
+  color: var(--primary);
+  font-family: inherit;
+  font-size: 0.84rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 0;
+}
+
+.auth-gate-box {
+  background: #FFF9EE;
+  border: 1px dashed #D8B884;
+  border-radius: 12px;
+  padding: 14px 16px;
+  font-size: 0.86rem;
+  color: #5C4523;
+}
+
+.auth-gate-box p {
+  margin: 6px 0 12px;
+  line-height: 1.5;
+}
+
+.reminder-toggle-box {
+  background: var(--ok-bg);
+  border: 1px solid #BFE0CD;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 0.85rem;
+  color: var(--ok-ink);
+}
+
+.reminder-toggle-box label {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.reminder-toggle-box input[type="checkbox"] {
+  margin-top: 3px;
+  width: 16px;
+  height: 16px;
+  accent-color: var(--primary);
+}

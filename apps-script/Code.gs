@@ -1,24 +1,57 @@
-/**
- * PITEKET — Google Apps Script Bridge (v2 — termasuk Catatan_Dresta 10 Wilayah)
- */
+// ============================================================================
+// PITEKET PWA — Google Apps Script Backend Terpadu (Tahap B)
+// 1) CMS Publisher: Publish 6 tab konten publik ke GitHub (data/*.json)
+// 2) Feedback Hub: Simpan Piteket / Koreksi ke tab Masukan_Keluarga
+// 3) Sistem Akun Privat: Daftar + Konfirmasi Email OTP, Login, Lupa Password OTP
+//    (disimpan di tab privat Akun_Pengguna & Catatan_Pengguna — TIDAK dipublish)
+// 4) Pengingat Otonan Otomatis (Trigger Harian 07:00 WITA via Gmail Anda)
+// ============================================================================
 
-const TAB_TO_FILE = {
-  'Utpatti': 'data/utpatti.json',
-  'Sthiti': 'data/sthiti.json',
-  'Pralina': 'data/pralina.json',
-  'Dewasa_Ayu': 'data/dewasa-ayu.json',
-  'Glosarium_Aksara': 'data/glosarium-aksara.json',
-  'Catatan_Dresta': 'data/catatan-dresta.json'
-};
+const PUBLIC_SHEET_FILES = [
+  { sheetName: 'Utpatti', filePath: 'data/utpatti.json' },
+  { sheetName: 'Sthiti', filePath: 'data/sthiti.json' },
+  { sheetName: 'Pralina', filePath: 'data/pralina.json' },
+  { sheetName: 'Catatan_Dresta', filePath: 'data/catatan-dresta.json' },
+  { sheetName: 'Dewasa_Ayu', filePath: 'data/dewasa-ayu.json' },
+  { sheetName: 'Glosarium_Aksara', filePath: 'data/glosarium-aksara.json' }
+];
+
+const TAB_USERS = 'Akun_Pengguna';
+const TAB_USER_DATA = 'Catatan_Pengguna';
+const TAB_FEEDBACK = 'Masukan_Keluarga';
 
 function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu('Piteket CMS')
-    .addItem('Publish Semua Data ke GitHub (PWA)', 'publishAllTabsToGitHub')
+    .addItem('Publish Semua Data ke GitHub (PWA)', 'publishAllToGitHub')
+    .addSeparator()
+    .addItem('Siapkan Tab Akun & Catatan Privat', 'ensurePrivateTabs')
+    .addItem('Pasang Pengingat Otonan Harian (07:00 WITA)', 'installDailyOtonanTrigger')
+    .addItem('Uji Kirim Pengingat Otonan Sekarang', 'kirimPengingatOtonanHarian')
+    .addSeparator()
+    .addItem('Cek Status Konfigurasi GitHub', 'checkConfig')
     .addToUi();
 }
 
-function sheetToJsonArray(sheet) {
+function checkConfig() {
+  const props = PropertiesService.getScriptProperties();
+  const owner = props.getProperty('GITHUB_OWNER') || '(belum diisi)';
+  const repo = props.getProperty('GITHUB_REPO') || '(belum diisi)';
+  const branch = props.getProperty('GITHUB_BRANCH') || 'main';
+  const hasToken = props.getProperty('GITHUB_TOKEN') ? 'Tersimpan' : '(belum diisi)';
+  const quota = MailApp.getRemainingDailyQuota();
+  SpreadsheetApp.getUi().alert(
+    'Konfigurasi Piteket CMS:\n' +
+    '• GITHUB_OWNER: ' + owner + '\n' +
+    '• GITHUB_REPO: ' + repo + '\n' +
+    '• GITHUB_BRANCH: ' + branch + '\n' +
+    '• GITHUB_TOKEN: ' + hasToken + '\n' +
+    '• Sisa Kuota Email Gmail Hari Ini: ' + quota + ' penerima'
+  );
+}
+
+// ======================= 1. CMS PUBLISHER KE GITHUB ==========================
+function sheetToObjects(sheet) {
   const values = sheet.getDataRange().getValues();
   if (values.length < 2) return [];
   const headers = values[0].map((h) => String(h).trim());
@@ -28,7 +61,6 @@ function sheetToJsonArray(sheet) {
     if (row.every((cell) => String(cell).trim() === '')) continue;
     const obj = {};
     headers.forEach((h, idx) => {
-      if (!h) return;
       const val = row[idx];
       obj[h] = val instanceof Date ? Utilities.formatDate(val, 'Asia/Makassar', 'yyyy-MM-dd') : String(val);
     });
@@ -37,43 +69,46 @@ function sheetToJsonArray(sheet) {
   return rows;
 }
 
-function publishAllTabsToGitHub() {
+function publishAllToGitHub() {
   const props = PropertiesService.getScriptProperties();
-  const token = props.getProperty('GITHUB_TOKEN');
-  const owner = props.getProperty('GITHUB_OWNER') || 'adeprimanda90';
-  const repo = props.getProperty('GITHUB_REPO') || 'piteket-pwa';
+  const owner = props.getProperty('GITHUB_OWNER');
+  const repo = props.getProperty('GITHUB_REPO');
   const branch = props.getProperty('GITHUB_BRANCH') || 'main';
+  const token = props.getProperty('GITHUB_TOKEN');
 
-  if (!token) {
-    SpreadsheetApp.getUi().alert('GITHUB_TOKEN belum diisi di Project Settings > Script Properties.');
+  if (!owner || !repo || !token) {
+    SpreadsheetApp.getUi().alert('Lengkapi Script Properties (GITHUB_OWNER, GITHUB_REPO, GITHUB_TOKEN) terlebih dahulu.');
     return;
   }
 
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const updated = [];
+  const results = [];
 
-  Object.keys(TAB_TO_FILE).forEach((tabName) => {
-    const sheet = ss.getSheetByName(tabName);
-    if (!sheet) return;
-    const jsonString = JSON.stringify(sheetToJsonArray(sheet), null, 2);
-    const path = TAB_TO_FILE[tabName];
-    pushFileToGitHub(owner, repo, branch, path, jsonString, token, `Update ${path} from Piteket Google Sheet`);
-    updated.push(path);
+  PUBLIC_SHEET_FILES.forEach((item) => {
+    const sheet = ss.getSheetByName(item.sheetName);
+    if (!sheet) {
+      results.push('SKIP ' + item.sheetName + ' (tab tidak ditemukan)');
+      return;
+    }
+    const data = sheetToObjects(sheet);
+    const jsonStr = JSON.stringify(data, null, 2);
+    const ok = pushFileToGitHub(owner, repo, branch, token, item.filePath, jsonStr, 'Update ' + item.filePath + ' dari Piteket CMS');
+    results.push((ok ? 'OK ' : 'GAGAL ') + item.filePath + ' (' + data.length + ' entri)');
   });
 
-  SpreadsheetApp.getUi().alert('Berhasil publish ke GitHub! Cloudflare Pages akan otomatis update dalam ~15 detik.\n\nFile diperbarui:\n- ' + updated.join('\n- '));
+  SpreadsheetApp.getUi().alert('Hasil Publish ke GitHub:\n' + results.join('\n') + '\n\nCloudflare Pages akan deploy otomatis dalam ~30–60 detik.');
 }
 
-function pushFileToGitHub(owner, repo, branch, path, content, token, message) {
-  const apiUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
+function pushFileToGitHub(owner, repo, branch, token, path, content, message) {
+  const url = 'https://api.github.com/repos/' + owner + '/' + repo + '/contents/' + path;
   const headers = {
-    Authorization: `Bearer ${token}`,
+    Authorization: 'Bearer ' + token,
     Accept: 'application/vnd.github+json',
     'X-GitHub-Api-Version': '2022-11-28'
   };
 
   let sha = null;
-  const getRes = UrlFetchApp.fetch(`${apiUrl}?ref=${branch}`, {
+  const getRes = UrlFetchApp.fetch(url + '?ref=' + encodeURIComponent(branch), {
     method: 'get',
     headers: headers,
     muteHttpExceptions: true
@@ -84,50 +119,457 @@ function pushFileToGitHub(owner, repo, branch, path, content, token, message) {
 
   const payload = {
     message: message,
-    content: Utilities.base64Encode(Utilities.newBlob(content, 'application/json', path).getBytes()),
+    content: Utilities.base64Encode(Utilities.newBlob(content, 'application/json').getBytes()),
     branch: branch
   };
   if (sha) payload.sha = sha;
 
-  const putRes = UrlFetchApp.fetch(apiUrl, {
+  const putRes = UrlFetchApp.fetch(url, {
     method: 'put',
-    headers: headers,
     contentType: 'application/json',
+    headers: headers,
     payload: JSON.stringify(payload),
     muteHttpExceptions: true
   });
+  const code = putRes.getResponseCode();
+  return code === 200 || code === 201;
+}
 
-  if (putRes.getResponseCode() < 200 || putRes.getResponseCode() >= 300) {
-    throw new Error(`Gagal upload ${path}: ${putRes.getContentText()}`);
+// ======================= 2. TAB PRIVAT & UTILITAS KEAMANAN ===================
+function ensurePrivateTabs() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let uSheet = ss.getSheetByName(TAB_USERS);
+  if (!uSheet) {
+    uSheet = ss.insertSheet(TAB_USERS);
+    uSheet.appendRow([
+      'user_id', 'username', 'email', 'password_hash', 'salt',
+      'status', 'otp_code', 'otp_expires_ms', 'session_token',
+      'created_at', 'last_login'
+    ]);
+    uSheet.setFrozenRows(1);
+  }
+
+  let dSheet = ss.getSheetByName(TAB_USER_DATA);
+  if (!dSheet) {
+    dSheet = ss.insertSheet(TAB_USER_DATA);
+    dSheet.appendRow([
+      'user_id', 'email', 'domisili', 'kawitan',
+      'reminders_enabled', 'data_json', 'updated_at'
+    ]);
+    dSheet.setFrozenRows(1);
+  }
+  return { uSheet: uSheet, dSheet: dSheet };
+}
+
+function sha256Hex(text) {
+  const digest = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, text, Utilities.Charset.UTF_8);
+  return digest.map((b) => ('0' + ((b + 256) % 256).toString(16)).slice(-2)).join('');
+}
+
+function generateOtp6() {
+  return String(Math.floor(100000 + Math.random() * 900000));
+}
+
+function generateToken() {
+  return Utilities.getUuid().replace(/-/g, '') + Utilities.getUuid().replace(/-/g, '');
+}
+
+function jsonResponse(obj) {
+  return ContentService.createTextOutput(JSON.stringify(obj))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+// ======================= 3. ROUTER WEB APP (doPost) ==========================
+function doPost(e) {
+  try {
+    const raw = (e && e.postData && e.postData.contents) ? e.postData.contents : '{}';
+    const body = JSON.parse(raw);
+    const action = body.action || 'feedback';
+
+    if (action === 'feedback') return handleFeedback(body);
+    if (action === 'register') return handleRegister(body);
+    if (action === 'verify_email') return handleVerifyEmail(body);
+    if (action === 'login') return handleLogin(body);
+    if (action === 'forgot_password') return handleForgotPassword(body);
+    if (action === 'reset_password') return handleResetPassword(body);
+    if (action === 'sync_load') return handleSyncLoad(body);
+    if (action === 'sync_save') return handleSyncSave(body);
+
+    return jsonResponse({ ok: false, error: 'Aksi tidak dikenali.' });
+  } catch (err) {
+    return jsonResponse({ ok: false, error: 'Terjadi kesalahan server: ' + err.message });
   }
 }
 
-function doPost(e) {
+function handleFeedback(body) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(TAB_FEEDBACK);
+  if (!sheet) return jsonResponse({ ok: false, error: 'Tab Masukan_Keluarga tidak ditemukan.' });
+  const now = Utilities.formatDate(new Date(), 'Asia/Makassar', 'yyyy-MM-dd HH:mm:ss');
+  sheet.appendRow([
+    now,
+    body.nama_pengirim || '',
+    body.hubungan_keluarga || '',
+    body.tab_terkait || '',
+    body.id_topik || '',
+    body.judul_topik || '',
+    body.asal_dresta || '',
+    body.isi_masukan_atau_koreksi || '',
+    'Terbuka',
+    ''
+  ]);
+  return jsonResponse({ ok: true, message: 'Piteket tersimpan.' });
+}
+
+function handleRegister(body) {
+  const username = String(body.username || '').trim();
+  const email = String(body.email || '').trim().toLowerCase();
+  const password = String(body.password || '');
+
+  if (username.length < 3) return jsonResponse({ ok: false, error: 'Username minimal 3 karakter.' });
+  if (!email.includes('@')) return jsonResponse({ ok: false, error: 'Format email tidak valid.' });
+  if (password.length < 6) return jsonResponse({ ok: false, error: 'Password minimal 6 karakter.' });
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
   try {
-    const data = JSON.parse(e.postData.contents);
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const sheet = ss.getSheetByName('Masukan_Keluarga');
+    const { uSheet } = ensurePrivateTabs();
+    const rows = uSheet.getDataRange().getValues();
+    for (let i = 1; i < rows.length; i++) {
+      const existingUser = String(rows[i][1]).trim().toLowerCase();
+      const existingEmail = String(rows[i][2]).trim().toLowerCase();
+      const status = String(rows[i][5]).trim();
+      if (existingEmail === email && status === 'AKTIF') {
+        return jsonResponse({ ok: false, error: 'Email sudah terdaftar. Silakan masuk atau gunakan Lupa Password.' });
+      }
+      if (existingUser === username.toLowerCase() && existingEmail !== email && status === 'AKTIF') {
+        return jsonResponse({ ok: false, error: 'Username sudah dipakai pengguna lain.' });
+      }
+      // Jika pendaftaran lama belum terverifikasi, perbarui kode OTP-nya
+      if (existingEmail === email && status !== 'AKTIF') {
+        const salt = Utilities.getUuid().slice(0, 12);
+        const hash = sha256Hex(salt + ':' + password);
+        const otp = generateOtp6();
+        const exp = Date.now() + 15 * 60 * 1000;
+        uSheet.getRange(i + 1, 2).setValue(username);
+        uSheet.getRange(i + 1, 4).setValue(hash);
+        uSheet.getRange(i + 1, 5).setValue(salt);
+        uSheet.getRange(i + 1, 7).setValue(otp);
+        uSheet.getRange(i + 1, 8).setValue(exp);
+        sendOtpEmail(email, username, otp, 'register');
+        return jsonResponse({ ok: true, needsVerification: true, message: 'Kode konfirmasi 6 digit telah dikirim ke email Anda.' });
+      }
+    }
+
+    const userId = 'usr_' + Utilities.getUuid().slice(0, 8);
+    const salt = Utilities.getUuid().slice(0, 12);
+    const hash = sha256Hex(salt + ':' + password);
+    const otp = generateOtp6();
+    const exp = Date.now() + 15 * 60 * 1000;
     const now = Utilities.formatDate(new Date(), 'Asia/Makassar', 'yyyy-MM-dd HH:mm:ss');
 
-    sheet.appendRow([
-      now,
-      data.nama_pengirim || '',
-      data.hubungan_keluarga || '',
-      data.tab_terkait || '',
-      data.id_topik || '',
-      data.judul_topik || '',
-      data.asal_dresta || '',
-      data.isi_masukan_atau_koreksi || '',
-      'Terbuka',
-      ''
-    ]);
-
-    return ContentService
-      .createTextOutput(JSON.stringify({ status: 'ok' }))
-      .setMimeType(ContentService.MimeType.JSON);
-  } catch (err) {
-    return ContentService
-      .createTextOutput(JSON.stringify({ status: 'error', message: String(err) }))
-      .setMimeType(ContentService.MimeType.JSON);
+    uSheet.appendRow([userId, username, email, hash, salt, 'MENUNGGU_VERIFIKASI', otp, exp, '', now, '']);
+    sendOtpEmail(email, username, otp, 'register');
+    return jsonResponse({ ok: true, needsVerification: true, message: 'Kode konfirmasi 6 digit telah dikirim ke email Anda.' });
+  } finally {
+    lock.releaseLock();
   }
+}
+
+function handleVerifyEmail(body) {
+  const email = String(body.email || '').trim().toLowerCase();
+  const otp = String(body.otp || '').trim();
+  const { uSheet, dSheet } = ensurePrivateTabs();
+  const rows = uSheet.getDataRange().getValues();
+
+  for (let i = 1; i < rows.length; i++) {
+    if (String(rows[i][2]).trim().toLowerCase() === email) {
+      const savedOtp = String(rows[i][6]).trim();
+      const exp = Number(rows[i][7] || 0);
+      if (!savedOtp || savedOtp !== otp) {
+        return jsonResponse({ ok: false, error: 'Kode konfirmasi salah.' });
+      }
+      if (Date.now() > exp) {
+        return jsonResponse({ ok: false, error: 'Kode konfirmasi sudah kedaluwarsa. Silakan daftar ulang untuk mengirim kode baru.' });
+      }
+      const token = generateToken();
+      const now = Utilities.formatDate(new Date(), 'Asia/Makassar', 'yyyy-MM-dd HH:mm:ss');
+      uSheet.getRange(i + 1, 6).setValue('AKTIF');
+      uSheet.getRange(i + 1, 7).setValue('');
+      uSheet.getRange(i + 1, 8).setValue('');
+      uSheet.getRange(i + 1, 9).setValue(token);
+      uSheet.getRange(i + 1, 11).setValue(now);
+
+      const userId = String(rows[i][0]);
+      const username = String(rows[i][1]);
+      const cloud = getUserCloudData(dSheet, userId);
+
+      return jsonResponse({
+        ok: true,
+        token: token,
+        user: { userId: userId, username: username, email: email },
+        cloud: cloud
+      });
+    }
+  }
+  return jsonResponse({ ok: false, error: 'Email tidak ditemukan.' });
+}
+
+function handleLogin(body) {
+  const identifier = String(body.identifier || '').trim().toLowerCase();
+  const password = String(body.password || '');
+  const { uSheet, dSheet } = ensurePrivateTabs();
+  const rows = uSheet.getDataRange().getValues();
+
+  for (let i = 1; i < rows.length; i++) {
+    const uname = String(rows[i][1]).trim().toLowerCase();
+    const email = String(rows[i][2]).trim().toLowerCase();
+    if (identifier === email || identifier === uname) {
+      if (String(rows[i][5]).trim() !== 'AKTIF') {
+        return jsonResponse({ ok: false, needsVerification: true, email: email, error: 'Akun belum diverifikasi. Masukkan kode 6 digit dari email Anda.' });
+      }
+      const salt = String(rows[i][4]);
+      const expectedHash = String(rows[i][3]);
+      if (sha256Hex(salt + ':' + password) !== expectedHash) {
+        return jsonResponse({ ok: false, error: 'Password salah.' });
+      }
+      const token = generateToken();
+      const now = Utilities.formatDate(new Date(), 'Asia/Makassar', 'yyyy-MM-dd HH:mm:ss');
+      uSheet.getRange(i + 1, 9).setValue(token);
+      uSheet.getRange(i + 1, 11).setValue(now);
+
+      const userId = String(rows[i][0]);
+      const cloud = getUserCloudData(dSheet, userId);
+      return jsonResponse({
+        ok: true,
+        token: token,
+        user: { userId: userId, username: String(rows[i][1]), email: email },
+        cloud: cloud
+      });
+    }
+  }
+  return jsonResponse({ ok: false, error: 'Akun tidak ditemukan. Periksa email/username Anda.' });
+}
+
+function handleForgotPassword(body) {
+  const email = String(body.email || '').trim().toLowerCase();
+  const { uSheet } = ensurePrivateTabs();
+  const rows = uSheet.getDataRange().getValues();
+
+  for (let i = 1; i < rows.length; i++) {
+    if (String(rows[i][2]).trim().toLowerCase() === email) {
+      const otp = generateOtp6();
+      const exp = Date.now() + 15 * 60 * 1000;
+      uSheet.getRange(i + 1, 7).setValue(otp);
+      uSheet.getRange(i + 1, 8).setValue(exp);
+      sendOtpEmail(email, String(rows[i][1]), otp, 'reset');
+      return jsonResponse({ ok: true, message: 'Kode sementara 6 digit sudah dikirim ke email Anda (berlaku 15 menit).' });
+    }
+  }
+  return jsonResponse({ ok: false, error: 'Email tersebut belum terdaftar di Piteket.' });
+}
+
+function handleResetPassword(body) {
+  const email = String(body.email || '').trim().toLowerCase();
+  const otp = String(body.otp || '').trim();
+  const newPassword = String(body.newPassword || '');
+
+  if (newPassword.length < 6) return jsonResponse({ ok: false, error: 'Password baru minimal 6 karakter.' });
+
+  const { uSheet } = ensurePrivateTabs();
+  const rows = uSheet.getDataRange().getValues();
+  for (let i = 1; i < rows.length; i++) {
+    if (String(rows[i][2]).trim().toLowerCase() === email) {
+      const savedOtp = String(rows[i][6]).trim();
+      const exp = Number(rows[i][7] || 0);
+      if (!savedOtp || savedOtp !== otp) return jsonResponse({ ok: false, error: 'Kode sementara salah.' });
+      if (Date.now() > exp) return jsonResponse({ ok: false, error: 'Kode sementara sudah kedaluwarsa. Minta kode baru lagi.' });
+
+      const salt = Utilities.getUuid().slice(0, 12);
+      const hash = sha256Hex(salt + ':' + newPassword);
+      uSheet.getRange(i + 1, 4).setValue(hash);
+      uSheet.getRange(i + 1, 5).setValue(salt);
+      uSheet.getRange(i + 1, 6).setValue('AKTIF');
+      uSheet.getRange(i + 1, 7).setValue('');
+      uSheet.getRange(i + 1, 8).setValue('');
+      uSheet.getRange(i + 1, 9).setValue('');
+      return jsonResponse({ ok: true, message: 'Password berhasil diperbarui. Silakan masuk dengan password baru Anda.' });
+    }
+  }
+  return jsonResponse({ ok: false, error: 'Email tidak ditemukan.' });
+}
+
+function findUserByToken(uSheet, token) {
+  if (!token) return null;
+  const rows = uSheet.getDataRange().getValues();
+  for (let i = 1; i < rows.length; i++) {
+    if (String(rows[i][8]).trim() === token && String(rows[i][5]).trim() === 'AKTIF') {
+      return {
+        rowIdx: i + 1,
+        userId: String(rows[i][0]),
+        username: String(rows[i][1]),
+        email: String(rows[i][2])
+      };
+    }
+  }
+  return null;
+}
+
+function getUserCloudData(dSheet, userId) {
+  const rows = dSheet.getDataRange().getValues();
+  for (let i = 1; i < rows.length; i++) {
+    if (String(rows[i][0]) === userId) {
+      let parsed = {};
+      try { parsed = JSON.parse(rows[i][5] || '{}'); } catch (e) {}
+      return {
+        domisili: String(rows[i][2] || 'Denpasar'),
+        kawitan: String(rows[i][3] || 'Karangasem'),
+        remindersEnabled: String(rows[i][4]) !== 'FALSE' && rows[i][4] !== false,
+        familyOtonan: parsed.familyOtonan || [],
+        checklistChecked: parsed.checklistChecked || {},
+        checklistCustom: parsed.checklistCustom || {}
+      };
+    }
+  }
+  return null;
+}
+
+function handleSyncLoad(body) {
+  const { uSheet, dSheet } = ensurePrivateTabs();
+  const user = findUserByToken(uSheet, String(body.token || ''));
+  if (!user) return jsonResponse({ ok: false, error: 'Sesi berakhir. Silakan masuk kembali.' });
+  return jsonResponse({
+    ok: true,
+    user: { userId: user.userId, username: user.username, email: user.email },
+    cloud: getUserCloudData(dSheet, user.userId)
+  });
+}
+
+function handleSyncSave(body) {
+  const { uSheet, dSheet } = ensurePrivateTabs();
+  const user = findUserByToken(uSheet, String(body.token || ''));
+  if (!user) return jsonResponse({ ok: false, error: 'Sesi berakhir. Silakan masuk kembali.' });
+
+  const domisili = String(body.domisili || 'Denpasar');
+  const kawitan = String(body.kawitan || 'Karangasem');
+  const remindersEnabled = body.remindersEnabled !== false;
+  const payloadJson = JSON.stringify({
+    familyOtonan: body.familyOtonan || [],
+    checklistChecked: body.checklistChecked || {},
+    checklistCustom: body.checklistCustom || {}
+  });
+  const now = Utilities.formatDate(new Date(), 'Asia/Makassar', 'yyyy-MM-dd HH:mm:ss');
+
+  const rows = dSheet.getDataRange().getValues();
+  for (let i = 1; i < rows.length; i++) {
+    if (String(rows[i][0]) === user.userId) {
+      dSheet.getRange(i + 1, 2, 1, 6).setValues([[user.email, domisili, kawitan, remindersEnabled, payloadJson, now]]);
+      return jsonResponse({ ok: true, message: 'Catatan tersinkron ke akun.' });
+    }
+  }
+
+  dSheet.appendRow([user.userId, user.email, domisili, kawitan, remindersEnabled, payloadJson, now]);
+  return jsonResponse({ ok: true, message: 'Catatan tersimpan ke akun.' });
+}
+
+function sendOtpEmail(toEmail, username, otp, mode) {
+  const subject = mode === 'register'
+    ? '[Piteket] Kode Konfirmasi Pendaftaran Akun'
+    : '[Piteket] Kode Sementara Lupa Password';
+  const intro = mode === 'register'
+    ? 'Suksma telah mendaftar di Piteket! Masukkan kode 6 digit berikut di aplikasi untuk mengaktifkan akun Anda:'
+    : 'Kami menerima permintaan lupa password untuk akun Piteket Anda. Masukkan kode sementara 6 digit berikut untuk membuat password baru:';
+
+  const body =
+    'Om Swastyastu ' + username + ',\n\n' +
+    intro + '\n\n' +
+    'KODE VERIFIKASI: ' + otp + '\n' +
+    '(Berlaku selama 15 menit)\n\n' +
+    'Jika Anda tidak merasa meminta kode ini, silakan abaikan email ini.\n\n' +
+    'Om Santih, Santih, Santih Om,\n' +
+    'Piteket — Teman Belajar Hidup Orang Bali\n' +
+    'https://piteket-pwa.pages.dev';
+
+  MailApp.sendEmail({ to: toEmail, subject: subject, body: body, name: 'Piteket Bali' });
+}
+
+// ======================= 4. PENGINGAT OTONAN HARIAN (GMAIL) ==================
+function installDailyOtonanTrigger() {
+  const triggers = ScriptApp.getProjectTriggers();
+  triggers.forEach((t) => {
+    if (t.getHandlerFunction() === 'kirimPengingatOtonanHarian') {
+      ScriptApp.deleteTrigger(t);
+    }
+  });
+  ScriptApp.newTrigger('kirimPengingatOtonanHarian')
+    .timeBased()
+    .everyDays(1)
+    .atHour(7)
+    .inTimezone('Asia/Makassar')
+    .create();
+  SpreadsheetApp.getUi().alert('Pengingat Otonan harian aktif! Sistem akan mengecek daftar Otonan pengguna login setiap hari pukul 07:00 WITA dan mengirim email pengingat H-3, H-1, dan Hari H.');
+}
+
+function daysUntilNextOtonan(birthIso, todayUtcMs) {
+  const parts = String(birthIso || '').split('-').map(Number);
+  if (parts.length !== 3) return null;
+  const birthUtc = Date.UTC(parts[0], parts[1] - 1, parts[2]);
+  const diff = Math.round((todayUtcMs - birthUtc) / 86400000);
+  const nextCycle = diff <= 0 ? 1 : Math.ceil(diff / 210);
+  const nextUtc = birthUtc + nextCycle * 210 * 86400000;
+  return {
+    daysUntil: Math.round((nextUtc - todayUtcMs) / 86400000),
+    otonKe: nextCycle,
+    nextIso: Utilities.formatDate(new Date(nextUtc), 'UTC', 'yyyy-MM-dd')
+  };
+}
+
+function kirimPengingatOtonanHarian() {
+  const { dSheet } = ensurePrivateTabs();
+  const rows = dSheet.getDataRange().getValues();
+  if (rows.length < 2) return;
+
+  const todayStr = Utilities.formatDate(new Date(), 'Asia/Makassar', 'yyyy-MM-dd');
+  const p = todayStr.split('-').map(Number);
+  const todayUtc = Date.UTC(p[0], p[1] - 1, p[2]);
+
+  let sentCount = 0;
+  for (let i = 1; i < rows.length; i++) {
+    if (MailApp.getRemainingDailyQuota() <= 5) break;
+    const email = String(rows[i][1] || '').trim();
+    const enabled = String(rows[i][4]) !== 'FALSE' && rows[i][4] !== false;
+    if (!email || !enabled) continue;
+
+    let parsed = {};
+    try { parsed = JSON.parse(rows[i][5] || '{}'); } catch (e) { continue; }
+    const list = parsed.familyOtonan || [];
+    const alerts = [];
+
+    list.forEach((item) => {
+      const res = daysUntilNextOtonan(item.birthDate, todayUtc);
+      if (res && (res.daysUntil === 3 || res.daysUntil === 1 || res.daysUntil === 0)) {
+        const labelHari = res.daysUntil === 0 ? 'HARI INI' : 'H-' + res.daysUntil;
+        alerts.push('• ' + item.name + ' — Oton ke-' + res.otonKe + ' (' + labelHari + ', tanggal ' + res.nextIso + ')');
+      }
+    });
+
+    if (alerts.length) {
+      const body =
+        'Om Swastyastu,\n\n' +
+        'Berikut pengingat Otonan keluarga yang tersimpan di akun Piteket Anda:\n\n' +
+        alerts.join('\n') + '\n\n' +
+        'Buka Piteket untuk melihat detail Wewaran, Wuku, dan Ceklis Persiapan Otonan:\n' +
+        'https://piteket-pwa.pages.dev\n\n' +
+        'Om Santih, Santih, Santih Om,\n' +
+        'Piteket — Teman Belajar Hidup Orang Bali';
+      MailApp.sendEmail({
+        to: email,
+        subject: '[Piteket] Pengingat Otonan Keluarga (' + alerts.length + ' jadwal dekat)',
+        body: body,
+        name: 'Piteket Bali'
+      });
+      sentCount++;
+    }
+  }
+  Logger.log('Pengingat Otonan terkirim: ' + sentCount);
 }

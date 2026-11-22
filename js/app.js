@@ -10,6 +10,7 @@ import {
 import { evaluateAlaAyuningDewasa, findGoodDaysInMonth } from './dewasa-engine.js';
 import { buildIcsContent, downloadIcsFile } from './ics-export.js';
 import { DEFAULT_CHECKLISTS } from './checklists.js';
+import { AuthApi, getSavedSession, saveSession } from './auth-sync.js';
 
 const REGIONS = [
   'Denpasar',
@@ -47,7 +48,7 @@ const state = {
   dewasa: [],
   glosarium: [],
   activeFeedbackTopic: null,
-  // Tahap A: Mode Klasik Cetak Bali (vertikal per Wuku) vs Bulanan Standar + Cari Hari Baik
+  // Kalender & Otonan
   calYear: nowDate.getFullYear(),
   calMonth: nowDate.getMonth(),
   calViewMode: localStorage.getItem('piteket_cal_view') || 'classic',
@@ -57,20 +58,390 @@ const state = {
   otonanBirthDate: localStorage.getItem('piteket_last_otonan_birth') || '',
   otonanName: '',
   familyOtonan: loadJsonStorage('piteket_family_otonan', []),
-  // Fase 3: Ceklis Persiapan
+  // Ceklis
   checklistChecked: loadJsonStorage('piteket_checklist_checked', {}),
-  checklistCustom: loadJsonStorage('piteket_checklist_custom', {})
+  checklistCustom: loadJsonStorage('piteket_checklist_custom', {}),
+  // Tahap B: Akun & Pengingat Otonan Langsung
+  session: getSavedSession(), // { token, user: { userId, username, email } }
+  remindersEnabled: localStorage.getItem('piteket_reminders_enabled') !== 'false',
+  syncStatus: '',
+  authView: 'login',
+  pendingAuthEmail: ''
 };
+
+let syncTimer = null;
 
 function showToast(msg) {
   const t = document.getElementById('toast');
   t.textContent = msg;
   t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 3200);
+  setTimeout(() => t.classList.remove('show'), 3400);
 }
 
 function updateRegionBadge() {
   document.getElementById('region-label').textContent = `Domisili: ${state.domisili} · Kawitan: ${state.kawitan}`;
+}
+
+function getNearOtonanAlerts() {
+  if (!state.session) return [];
+  return state.familyOtonan
+    .map((f) => {
+      const calc = calculateOtonan(f.birthDate, todayIso, 1);
+      return { ...f, next: calc.upcoming[0], wewaran: `${calc.wewaran} ${calc.wuku}` };
+    })
+    .filter((x) => x.next.daysUntil <= 7)
+    .sort((a, b) => a.next.daysUntil - b.next.daysUntil);
+}
+
+function renderAuthBarAndBanner() {
+  const bar = document.getElementById('auth-bar');
+  const banner = document.getElementById('otonan-alert-banner');
+  const alerts = getNearOtonanAlerts();
+
+  if (state.session && state.session.user) {
+    const bellBadge = alerts.length ? `<span class="bell-count">${alerts.length}</span>` : '';
+    bar.innerHTML = `
+      <div class="auth-user-pill">
+        <span>👤 @${state.session.user.username}</span>
+        <button type="button" class="btn-hero-bell" id="hero-bell-btn" title="Pengingat Otonan">🔔${bellBadge}</button>
+        <button type="button" class="btn-hero-logout" id="hero-logout-btn">Keluar</button>
+      </div>
+    `;
+    document.getElementById('hero-bell-btn').onclick = () => {
+      switchTab('kalender');
+      setTimeout(() => {
+        const el = document.getElementById('otonan-section');
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 60);
+    };
+    document.getElementById('hero-logout-btn').onclick = () => {
+      state.session = null;
+      saveSession(null);
+      state.syncStatus = '';
+      renderAuthBarAndBanner();
+      renderContent();
+      showToast('Anda telah keluar dari akun.');
+    };
+  } else {
+    bar.innerHTML = `<button type="button" class="btn-hero-auth" id="open-auth-btn">Masuk / Daftar Akun</button>`;
+    document.getElementById('open-auth-btn').onclick = () => openAuthModal('login');
+  }
+
+  if (state.session && alerts.length) {
+    banner.style.display = 'block';
+    banner.innerHTML = `
+      <strong>🔔 Pengingat Otonan Terdekat (${alerts.length}):</strong>
+      ${alerts.map((a) => `<span><strong>${a.name}</strong> (${a.next.daysUntil === 0 ? 'HARI INI' : `H-${a.next.daysUntil}`}, ${a.next.indoDate})</span>`).join(' · ')}
+    `;
+  } else {
+    banner.style.display = 'none';
+  }
+}
+
+function persistLocalUserState() {
+  localStorage.setItem('piteket_domisili', state.domisili);
+  localStorage.setItem('piteket_kawitan', state.kawitan);
+  localStorage.setItem('piteket_family_otonan', JSON.stringify(state.familyOtonan));
+  localStorage.setItem('piteket_checklist_checked', JSON.stringify(state.checklistChecked));
+  localStorage.setItem('piteket_checklist_custom', JSON.stringify(state.checklistCustom));
+  localStorage.setItem('piteket_reminders_enabled', String(state.remindersEnabled));
+}
+
+function scheduleCloudSync() {
+  persistLocalUserState();
+  renderAuthBarAndBanner();
+  if (!state.session || !state.session.token) return;
+
+  state.syncStatus = 'Menyinkronkan ke akun...';
+  clearTimeout(syncTimer);
+  syncTimer = setTimeout(async () => {
+    try {
+      const res = await AuthApi.syncSave(state.session.token, {
+        domisili: state.domisili,
+        kawitan: state.kawitan,
+        remindersEnabled: state.remindersEnabled,
+        familyOtonan: state.familyOtonan,
+        checklistChecked: state.checklistChecked,
+        checklistCustom: state.checklistCustom
+      });
+      if (res.ok) {
+        state.syncStatus = `Tersinkron ke @${state.session.user.username}`;
+      } else {
+        state.syncStatus = 'Gagal sinkronisasi (cek sesi login)';
+      }
+      const badge = document.getElementById('sync-status-label');
+      if (badge) badge.textContent = state.syncStatus;
+    } catch {
+      state.syncStatus = 'Offline — tersimpan lokal, akan disinkronkan saat online.';
+      const badge = document.getElementById('sync-status-label');
+      if (badge) badge.textContent = state.syncStatus;
+    }
+  }, 600);
+}
+
+function applyCloudData(cloud) {
+  if (!cloud) return;
+  if (cloud.domisili && REGIONS.includes(cloud.domisili)) state.domisili = cloud.domisili;
+  if (cloud.kawitan && REGIONS.includes(cloud.kawitan)) state.kawitan = cloud.kawitan;
+  state.remindersEnabled = cloud.remindersEnabled !== false;
+  if (Array.isArray(cloud.familyOtonan)) state.familyOtonan = cloud.familyOtonan;
+  if (cloud.checklistChecked && typeof cloud.checklistChecked === 'object') state.checklistChecked = cloud.checklistChecked;
+  if (cloud.checklistCustom && typeof cloud.checklistCustom === 'object') state.checklistCustom = cloud.checklistCustom;
+
+  persistLocalUserState();
+  const domSel = document.getElementById('select-domisili');
+  const kawSel = document.getElementById('select-kawitan');
+  if (domSel) domSel.value = state.domisili;
+  if (kawSel) kawSel.value = state.kawitan;
+  updateRegionBadge();
+}
+
+// ======================= MODAL AKUN (LOGIN / DAFTAR / OTP / LUPA PW) =========
+function openAuthModal(view = 'login') {
+  state.authView = view;
+  renderAuthModalBody();
+  document.getElementById('auth-modal').classList.add('open');
+}
+
+function renderAuthModalBody() {
+  const titleEl = document.getElementById('auth-modal-title');
+  const subEl = document.getElementById('auth-modal-sub');
+  const bodyEl = document.getElementById('auth-modal-body');
+
+  if (state.authView === 'login') {
+    titleEl.textContent = 'Masuk ke Akun Piteket';
+    subEl.textContent = 'Catatan Otonan, Ceklis, dan Profil Dresta Anda otomatis ikut di perangkat mana pun.';
+    bodyEl.innerHTML = `
+      <form id="auth-login-form">
+        <div class="form-group">
+          <label for="login-id">Email atau Username</label>
+          <input id="login-id" type="text" placeholder="contoh@gmail.com atau username" required />
+        </div>
+        <div class="form-group">
+          <label for="login-pw">Password</label>
+          <input id="login-pw" type="password" placeholder="Masukkan password Anda" required />
+        </div>
+        <div id="auth-msg" class="auth-msg"></div>
+        <button type="submit" class="btn btn-primary" style="width:100%;">Masuk</button>
+      </form>
+      <div class="auth-links">
+        <button type="button" class="link-btn" id="goto-forgot">Lupa Password?</button>
+        <button type="button" class="link-btn" id="goto-register">Belum punya akun? Daftar</button>
+      </div>
+    `;
+    document.getElementById('goto-forgot').onclick = () => { state.authView = 'forgot'; renderAuthModalBody(); };
+    document.getElementById('goto-register').onclick = () => { state.authView = 'register'; renderAuthModalBody(); };
+    document.getElementById('auth-login-form').onsubmit = async (e) => {
+      e.preventDefault();
+      const msg = document.getElementById('auth-msg');
+      msg.textContent = 'Memeriksa akun...';
+      try {
+        const res = await AuthApi.login(
+          document.getElementById('login-id').value.trim(),
+          document.getElementById('login-pw').value
+        );
+        if (!res.ok) {
+          if (res.needsVerification && res.email) {
+            state.pendingAuthEmail = res.email;
+            state.authView = 'verify';
+            renderAuthModalBody();
+            showToast(res.error);
+            return;
+          }
+          msg.textContent = res.error || 'Gagal masuk.';
+          return;
+        }
+        state.session = { token: res.token, user: res.user };
+        saveSession(state.session);
+        if (res.cloud) applyCloudData(res.cloud);
+        else scheduleCloudSync();
+        state.syncStatus = `Tersinkron ke @${res.user.username}`;
+        closeModal('auth-modal');
+        renderAuthBarAndBanner();
+        renderContent();
+        showToast(`Rahajeng rauh, @${res.user.username}!`);
+      } catch (err) {
+        msg.textContent = err.message;
+      }
+    };
+  } else if (state.authView === 'register') {
+    titleEl.textContent = 'Daftar Akun Piteket';
+    subEl.textContent = 'Kode konfirmasi 6 digit akan dikirim langsung ke email Anda.';
+    bodyEl.innerHTML = `
+      <form id="auth-reg-form">
+        <div class="form-group">
+          <label for="reg-user">Username</label>
+          <input id="reg-user" type="text" placeholder="Minimal 3 karakter (contoh: bimasena)" minlength="3" required />
+        </div>
+        <div class="form-group">
+          <label for="reg-email">Email Aktif</label>
+          <input id="reg-email" type="email" placeholder="nama@email.com" required />
+        </div>
+        <div class="form-group">
+          <label for="reg-pw">Password</label>
+          <input id="reg-pw" type="password" placeholder="Minimal 6 karakter" minlength="6" required />
+        </div>
+        <div id="auth-msg" class="auth-msg"></div>
+        <button type="submit" class="btn btn-primary" style="width:100%;">Daftar & Kirim Kode Konfirmasi</button>
+      </form>
+      <div class="auth-links">
+        <button type="button" class="link-btn" id="goto-login">Sudah punya akun? Masuk</button>
+      </div>
+    `;
+    document.getElementById('goto-login').onclick = () => { state.authView = 'login'; renderAuthModalBody(); };
+    document.getElementById('auth-reg-form').onsubmit = async (e) => {
+      e.preventDefault();
+      const msg = document.getElementById('auth-msg');
+      const email = document.getElementById('reg-email').value.trim();
+      msg.textContent = 'Mengirim kode konfirmasi ke email Anda...';
+      try {
+        const res = await AuthApi.register(
+          document.getElementById('reg-user').value.trim(),
+          email,
+          document.getElementById('reg-pw').value
+        );
+        if (!res.ok) {
+          msg.textContent = res.error || 'Pendaftaran gagal.';
+          return;
+        }
+        state.pendingAuthEmail = email;
+        state.authView = 'verify';
+        renderAuthModalBody();
+        showToast(res.message);
+      } catch (err) {
+        msg.textContent = err.message;
+      }
+    };
+  } else if (state.authView === 'verify') {
+    titleEl.textContent = 'Konfirmasi Email';
+    subEl.textContent = `Masukkan kode 6 digit yang dikirim ke ${state.pendingAuthEmail || 'email Anda'} (cek juga folder Spam).`;
+    bodyEl.innerHTML = `
+      <form id="auth-verify-form">
+        <div class="form-group">
+          <label for="ver-email">Email</label>
+          <input id="ver-email" type="email" value="${state.pendingAuthEmail}" required />
+        </div>
+        <div class="form-group">
+          <label for="ver-otp">Kode Konfirmasi 6 Digit</label>
+          <input id="ver-otp" type="text" inputmode="numeric" maxlength="6" placeholder="123456" required />
+        </div>
+        <div id="auth-msg" class="auth-msg"></div>
+        <button type="submit" class="btn btn-primary" style="width:100%;">Aktifkan Akun & Masuk</button>
+      </form>
+      <div class="auth-links">
+        <button type="button" class="link-btn" id="goto-login">Kembali ke Masuk</button>
+      </div>
+    `;
+    document.getElementById('goto-login').onclick = () => { state.authView = 'login'; renderAuthModalBody(); };
+    document.getElementById('auth-verify-form').onsubmit = async (e) => {
+      e.preventDefault();
+      const msg = document.getElementById('auth-msg');
+      msg.textContent = 'Memverifikasi kode...';
+      try {
+        const res = await AuthApi.verifyEmail(
+          document.getElementById('ver-email').value.trim(),
+          document.getElementById('ver-otp').value.trim()
+        );
+        if (!res.ok) {
+          msg.textContent = res.error || 'Verifikasi gagal.';
+          return;
+        }
+        state.session = { token: res.token, user: res.user };
+        saveSession(state.session);
+        scheduleCloudSync(); // Unggah data lokal awal ke akun baru
+        closeModal('auth-modal');
+        renderAuthBarAndBanner();
+        renderContent();
+        showToast(`Akun @${res.user.username} aktif! Catatan Anda kini tersinkron.`);
+      } catch (err) {
+        msg.textContent = err.message;
+      }
+    };
+  } else if (state.authView === 'forgot') {
+    titleEl.textContent = 'Lupa Password';
+    subEl.textContent = 'Kami akan mengirimkan kode sementara 6 digit ke email terdaftar Anda.';
+    bodyEl.innerHTML = `
+      <form id="auth-forgot-form">
+        <div class="form-group">
+          <label for="fg-email">Email Terdaftar</label>
+          <input id="fg-email" type="email" placeholder="nama@email.com" value="${state.pendingAuthEmail}" required />
+        </div>
+        <div id="auth-msg" class="auth-msg"></div>
+        <button type="submit" class="btn btn-primary" style="width:100%;">Kirim Kode Sementara</button>
+      </form>
+      <div class="auth-links">
+        <button type="button" class="link-btn" id="goto-reset">Sudah punya kode? Reset Password</button>
+        <button type="button" class="link-btn" id="goto-login">Kembali ke Masuk</button>
+      </div>
+    `;
+    document.getElementById('goto-reset').onclick = () => { state.authView = 'reset'; renderAuthModalBody(); };
+    document.getElementById('goto-login').onclick = () => { state.authView = 'login'; renderAuthModalBody(); };
+    document.getElementById('auth-forgot-form').onsubmit = async (e) => {
+      e.preventDefault();
+      const msg = document.getElementById('auth-msg');
+      const email = document.getElementById('fg-email').value.trim();
+      msg.textContent = 'Mengirim kode sementara ke email Anda...';
+      try {
+        const res = await AuthApi.forgotPassword(email);
+        if (!res.ok) {
+          msg.textContent = res.error || 'Gagal mengirim kode.';
+          return;
+        }
+        state.pendingAuthEmail = email;
+        state.authView = 'reset';
+        renderAuthModalBody();
+        showToast(res.message);
+      } catch (err) {
+        msg.textContent = err.message;
+      }
+    };
+  } else if (state.authView === 'reset') {
+    titleEl.textContent = 'Buat Password Baru';
+    subEl.textContent = 'Masukkan kode sementara 6 digit dari email dan password baru Anda.';
+    bodyEl.innerHTML = `
+      <form id="auth-reset-form">
+        <div class="form-group">
+          <label for="rs-email">Email</label>
+          <input id="rs-email" type="email" value="${state.pendingAuthEmail}" required />
+        </div>
+        <div class="form-group">
+          <label for="rs-otp">Kode Sementara 6 Digit</label>
+          <input id="rs-otp" type="text" inputmode="numeric" maxlength="6" placeholder="123456" required />
+        </div>
+        <div class="form-group">
+          <label for="rs-pw">Password Baru (min. 6 karakter)</label>
+          <input id="rs-pw" type="password" minlength="6" required />
+        </div>
+        <div id="auth-msg" class="auth-msg"></div>
+        <button type="submit" class="btn btn-primary" style="width:100%;">Simpan Password Baru</button>
+      </form>
+      <div class="auth-links">
+        <button type="button" class="link-btn" id="goto-login">Kembali ke Masuk</button>
+      </div>
+    `;
+    document.getElementById('goto-login').onclick = () => { state.authView = 'login'; renderAuthModalBody(); };
+    document.getElementById('auth-reset-form').onsubmit = async (e) => {
+      e.preventDefault();
+      const msg = document.getElementById('auth-msg');
+      msg.textContent = 'Memperbarui password...';
+      try {
+        const res = await AuthApi.resetPassword(
+          document.getElementById('rs-email').value.trim(),
+          document.getElementById('rs-otp').value.trim(),
+          document.getElementById('rs-pw').value
+        );
+        if (!res.ok) {
+          msg.textContent = res.error || 'Gagal reset password.';
+          return;
+        }
+        state.authView = 'login';
+        renderAuthModalBody();
+        showToast(res.message);
+      } catch (err) {
+        msg.textContent = err.message;
+      }
+    };
+  }
 }
 
 async function loadData() {
@@ -87,6 +458,21 @@ async function loadData() {
   state.dewasa = d;
   state.glosarium = g;
   renderContent();
+
+  // Muat sinkronisasi akun di latar belakang jika sudah login
+  if (state.session && state.session.token) {
+    try {
+      const res = await AuthApi.syncLoad(state.session.token);
+      if (res.ok && res.cloud) {
+        applyCloudData(res.cloud);
+        state.syncStatus = `Tersinkron ke @${state.session.user.username}`;
+        renderAuthBarAndBanner();
+        renderContent();
+      }
+    } catch {
+      state.syncStatus = 'Mode Offline (catatan lokal aktif)';
+    }
+  }
 }
 
 function renderCalendar(dateStr) {
@@ -144,50 +530,13 @@ function exportRahinanIcs() {
   const events = list.map((r) => ({
     isoDate: r.isoDate,
     summary: `Rahinan: ${r.name}`,
-    description: `${r.name} (${r.wewaran}) — Diekspor dari Piteket PWA (Domisili: ${state.domisili}, Kawitan: ${state.kawitan}).`,
+    description: `${r.name} (${r.wewaran}) — Diekspor dari Piteket PWA.`,
     alarmDaysBefore: [1]
   }));
   const labelMap = { ALL: 'Semua Rahinan', MAJOR: 'Hari Raya & Tumpek', LUNAR: 'Purnama & Tilem' };
   const ics = buildIcsContent(`Piteket — ${labelMap[state.rahinanFilter] || 'Rahinan'}`, events);
   downloadIcsFile(`piteket-rahinan-${state.rahinanFilter.toLowerCase()}.ics`, ics);
-  showToast(`File .ics berisi ${events.length} jadwal Rahinan (6 bulan) diunduh!`);
-}
-
-function exportSingleOtonanIcs(name, birthDate) {
-  const calc = calculateOtonan(birthDate, todayIso, 3);
-  const label = name || 'Keluarga';
-  const events = calc.upcoming.map((u) => ({
-    isoDate: u.isoDate,
-    summary: `Otonan ${label} (ke-${u.otonKe}) — ${calc.wewaran} ${calc.wuku}`,
-    description: `Otonan ke-${u.otonKe} untuk ${label} (${calc.wewaran} Wuku ${calc.wuku}, Urip ${calc.urip}, ${u.sasih} ${u.penanggal}). Pengingat H-3 & H-1 dari Piteket PWA.`,
-    alarmDaysBefore: [3, 1]
-  }));
-  const slug = label.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-  const ics = buildIcsContent(`Piteket — Otonan ${label}`, events);
-  downloadIcsFile(`piteket-otonan-${slug}.ics`, ics);
-  showToast(`3 jadwal Otonan ${label} (dengan pengingat H-3 & H-1) diunduh!`);
-}
-
-function exportAllFamilyOtonanIcs() {
-  if (!state.familyOtonan.length) {
-    showToast('Belum ada daftar Otonan keluarga yang disimpan.');
-    return;
-  }
-  const events = [];
-  state.familyOtonan.forEach((f) => {
-    const calc = calculateOtonan(f.birthDate, todayIso, 2);
-    calc.upcoming.forEach((u) => {
-      events.push({
-        isoDate: u.isoDate,
-        summary: `Otonan ${f.name} (ke-${u.otonKe}) — ${calc.wewaran} ${calc.wuku}`,
-        description: `Otonan ke-${u.otonKe} untuk ${f.name} (${calc.wewaran} Wuku ${calc.wuku}, Urip ${calc.urip}, ${u.sasih} ${u.penanggal}).`,
-        alarmDaysBefore: [3, 1]
-      });
-    });
-  });
-  const ics = buildIcsContent('Piteket — Otonan Keluarga', events);
-  downloadIcsFile('piteket-otonan-keluarga.ics', ics);
-  showToast(`File .ics gabungan (${events.length} jadwal Otonan keluarga) diunduh!`);
+  showToast(`File .ics berisi ${events.length} jadwal Rahinan diunduh!`);
 }
 
 function renderClassicVerticalGrid(monthData) {
@@ -290,6 +639,7 @@ function renderFase2CalendarTab(container) {
   const goodDays = findGoodDaysInMonth(monthData.days, state.dewasaFinderCat);
   const upcomingRahinan = getUpcomingRahinan(todayIso, 180, state.rahinanFilter).slice(0, 8);
   const otonanResult = state.otonanBirthDate ? calculateOtonan(state.otonanBirthDate, todayIso, 3) : null;
+  const isLoggedIn = Boolean(state.session && state.session.user);
 
   const savedOtonanSorted = state.familyOtonan
     .map((entry) => ({
@@ -300,7 +650,6 @@ function renderFase2CalendarTab(container) {
 
   container.innerHTML = `
     <div class="fase2-layout">
-      <!-- 1. KALENDER BALI ALA CETAK BANGBANG GDE RAWI & BULANAN -->
       <section class="f2-panel">
         <div class="mcal-header">
           <div>
@@ -330,7 +679,6 @@ function renderFase2CalendarTab(container) {
 
         ${state.calViewMode === 'classic' ? renderClassicVerticalGrid(monthData) : renderStandardMonthGrid(monthData)}
 
-        <!-- DETAIL LENGKAP TANGGAL TERPILIH (10 WEWARAN + ALA AYUNING DEWASA) -->
         <div class="day-detail-box">
           <div class="day-detail-head">
             <div>
@@ -371,17 +719,13 @@ function renderFase2CalendarTab(container) {
               <div class="dewasa-col">
                 <div class="dewasa-col-head is-ayu">Dewasa Ayu / Baik Untuk (${dewasaEval.ayu.length})</div>
                 ${dewasaEval.ayu.length ? `
-                  <ul>
-                    ${dewasaEval.ayu.map((a) => `<li><div><strong>${a.name}:</strong> ${a.desc}</div></li>`).join('')}
-                  </ul>
+                  <ul>${dewasaEval.ayu.map((a) => `<li><div><strong>${a.name}:</strong> ${a.desc}</div></li>`).join('')}</ul>
                 ` : `<p class="f2-sub">Tidak ada Dewasa Ayu khusus utama yang tercatat pada rumusan dasar tanggal ini.</p>`}
               </div>
               <div class="dewasa-col">
                 <div class="dewasa-col-head is-ala">Ala Dewasa / Pantangan (${dewasaEval.ala.length})</div>
                 ${dewasaEval.ala.length ? `
-                  <ul>
-                    ${dewasaEval.ala.map((a) => `<li><div><strong>${a.name}:</strong> ${a.desc}</div></li>`).join('')}
-                  </ul>
+                  <ul>${dewasaEval.ala.map((a) => `<li><div><strong>${a.name}:</strong> ${a.desc}</div></li>`).join('')}</ul>
                 ` : `<p class="f2-sub">Bebas dari pantangan Ala Dewasa utama pada daftar rumusan dasar.</p>`}
               </div>
             </div>
@@ -390,7 +734,6 @@ function renderFase2CalendarTab(container) {
         </div>
       </section>
 
-      <!-- 2. PENCARI HARI BAIK BULAN INI -->
       <section class="f2-panel">
         <div class="mcal-header">
           <div>
@@ -417,21 +760,20 @@ function renderFase2CalendarTab(container) {
               </div>
             `).join('')}
           </div>
-        ` : `<p class="f2-sub">Belum ada kandidat bebas pantangan utama pada bulan ${monthData.monthName} ${monthData.year} untuk kategori ini. Coba geser ke bulan berikutnya atau konsultasikan langsung ke Sulinggih.</p>`}
+        ` : `<p class="f2-sub">Belum ada kandidat bebas pantangan utama pada bulan ${monthData.monthName} ${monthData.year} untuk kategori ini.</p>`}
       </section>
 
-      <!-- 3. HITUNG MUNDUR RAHINAN TERDEKAT -->
       <section class="f2-panel">
         <div class="mcal-header">
           <div>
             <h3 class="f2-title">Hitung Mundur Rahinan Terdekat</h3>
-            <p class="f2-sub">Dihitung otomatis 100% offline. Bisa diekspor ke Google Calendar / Apple Calendar (.ics).</p>
+            <p class="f2-sub">Dihitung otomatis 100% offline dari hari ini.</p>
           </div>
           <div class="rahinan-filters">
             <button type="button" class="btn btn-sm ${state.rahinanFilter === 'ALL' ? 'btn-primary' : 'btn-outline'}" data-rfilter="ALL">Semua</button>
             <button type="button" class="btn btn-sm ${state.rahinanFilter === 'MAJOR' ? 'btn-primary' : 'btn-outline'}" data-rfilter="MAJOR">Hari Raya & Tumpek</button>
             <button type="button" class="btn btn-sm ${state.rahinanFilter === 'LUNAR' ? 'btn-primary' : 'btn-outline'}" data-rfilter="LUNAR">Purnama & Tilem</button>
-            <button type="button" class="btn btn-sm btn-ics" id="export-rahinan-ics">📅 Ekspor .ics (6 Bulan)</button>
+            <button type="button" class="btn btn-sm btn-ics" id="export-rahinan-ics">📅 Ekspor .ics</button>
           </div>
         </div>
         <div class="rahinan-list">
@@ -449,14 +791,18 @@ function renderFase2CalendarTab(container) {
         </div>
       </section>
 
-      <!-- 4. KALKULATOR OTONAN & DAFTAR OTONAN KELUARGA -->
-      <section class="f2-panel">
-        <h3 class="f2-title">Kalkulator Otonan & Pengingat Keluarga</h3>
-        <p class="f2-sub">Hitung hari lahir Pawukon (tiap 210 hari), simpan di perangkat Anda, dan ekspor pengingat H-3 & H-1 ke Kalender HP.</p>
+      <section class="f2-panel" id="otonan-section">
+        <div class="mcal-header">
+          <div>
+            <h3 class="f2-title">Kalkulator Otonan & Pengingat Langsung di Aplikasi</h3>
+            <p class="f2-sub">Hitung hari lahir Pawukon (tiap 210 hari). Pengguna yang login mendapat sinkronisasi lintas perangkat & pengingat langsung (In-App + Email H-3 & H-1).</p>
+          </div>
+          ${isLoggedIn ? `<span class="tag pill-ok" id="sync-status-label">${state.syncStatus || `Tersinkron ke @${state.session.user.username}`}</span>` : ''}
+        </div>
 
         <form id="otonan-form" class="otonan-form">
           <div class="form-group" style="margin:0;">
-            <label for="otonan-name">Nama (opsional untuk disimpan)</label>
+            <label for="otonan-name">Nama Anggota Keluarga</label>
             <input type="text" id="otonan-name" placeholder="Contoh: Ajik / Ibu / Gek Ayu" value="${state.otonanName}" />
           </div>
           <div class="form-group" style="margin:0;">
@@ -465,7 +811,9 @@ function renderFase2CalendarTab(container) {
           </div>
           <div class="otonan-actions">
             <button type="submit" class="btn btn-primary">Hitung Otonan</button>
-            <button type="button" class="btn btn-outline" id="save-otonan-btn">Simpan ke Keluarga</button>
+            ${isLoggedIn
+              ? `<button type="button" class="btn btn-outline" id="save-otonan-btn">+ Simpan & Aktifkan Pengingat</button>`
+              : `<button type="button" class="btn btn-outline" id="login-for-otonan-btn">Masuk untuk Simpan & Pengingat</button>`}
           </div>
         </form>
 
@@ -477,7 +825,6 @@ function renderFase2CalendarTab(container) {
                 <div class="otonan-main-val">${otonanResult.wewaran} · Wuku ${otonanResult.wuku}</div>
                 <div class="f2-sub">Lahir: ${otonanResult.birthIndo} · Tri Wara ${otonanResult.triWara} · Urip ${otonanResult.urip} · Ingkel ${otonanResult.ingkel}</div>
               </div>
-              <button type="button" class="btn btn-sm btn-ics" id="export-single-otonan-ics">📅 Ekspor 3 Otonan (.ics)</button>
             </div>
             ${otonanResult.isWukuWayang ? `
               <div class="elder-box" style="margin-top:10px;">
@@ -498,26 +845,34 @@ function renderFase2CalendarTab(container) {
         ` : ''}
 
         <div class="family-otonan-wrap">
-          <div class="mcal-header" style="margin-bottom:10px;">
-            <h4 style="margin:0;">Daftar Otonan Keluarga Tersimpan (${savedOtonanSorted.length})</h4>
-            ${savedOtonanSorted.length ? `<button type="button" class="btn btn-sm btn-ics" id="export-all-otonan-ics">📅 Ekspor Semua Otonan Keluarga (.ics)</button>` : ''}
-          </div>
-          ${savedOtonanSorted.length ? `
-            <div class="family-otonan-list">
-              ${savedOtonanSorted.map((f) => `
-                <div class="family-otonan-item">
-                  <div>
-                    <strong>${f.name}</strong>
-                    <div class="f2-sub">${f.calc.wewaran} ${f.calc.wuku} · Oton berikutnya: <strong>${f.calc.upcoming[0].indoDate}</strong> (${f.calc.upcoming[0].daysUntil === 0 ? 'HARI INI' : `H-${f.calc.upcoming[0].daysUntil}`})</div>
-                  </div>
-                  <div style="display:flex;gap:6px;">
-                    <button type="button" class="btn btn-outline btn-sm" data-ics-member="${f.id}">.ics</button>
+          ${isLoggedIn ? `
+            <div class="reminder-toggle-box">
+              <label>
+                <input type="checkbox" id="toggle-email-reminders" ${state.remindersEnabled ? 'checked' : ''} />
+                <span><strong>Aktifkan Pengingat Otonan Langsung</strong> (Lonceng di aplikasi + Email otomatis H-3, H-1, & Hari H ke <strong>${state.session.user.email}</strong>)</span>
+              </label>
+            </div>
+            <h4 style="margin:12px 0 8px;">Daftar Otonan Tersimpan di Akun @${state.session.user.username} (${savedOtonanSorted.length})</h4>
+            ${savedOtonanSorted.length ? `
+              <div class="family-otonan-list">
+                ${savedOtonanSorted.map((f) => `
+                  <div class="family-otonan-item">
+                    <div>
+                      <strong>${f.name}</strong>
+                      <div class="f2-sub">${f.calc.wewaran} ${f.calc.wuku} · Oton berikutnya: <strong>${f.calc.upcoming[0].indoDate}</strong> (${f.calc.upcoming[0].daysUntil === 0 ? 'HARI INI' : `H-${f.calc.upcoming[0].daysUntil}`})</div>
+                    </div>
                     <button type="button" class="btn btn-outline btn-sm" data-del-otonan="${f.id}">Hapus</button>
                   </div>
-                </div>
-              `).join('')}
+                `).join('')}
+              </div>
+            ` : `<p class="f2-sub">Belum ada anggota keluarga yang disimpan di akun Anda. Isi nama dan tanggal lahir di atas lalu klik <strong>+ Simpan & Aktifkan Pengingat</strong>.</p>`}
+          ` : `
+            <div class="auth-gate-box">
+              <strong>🔒 Pengingat Otonan & Sinkronisasi Lintas Perangkat (Khusus Akun Login)</strong>
+              <p>Masuk atau daftar akun gratis dengan email & username Anda agar catatan Otonan keluarga tetap menempel meski berganti HP/laptop, sekaligus mengaktifkan pengingat langsung di aplikasi & email otomatis (H-3, H-1, Hari H) tanpa perlu mengunduh file kalender terpisah.</p>
+              <button type="button" class="btn btn-primary btn-sm" id="gate-open-auth">Masuk / Daftar Akun Gratis</button>
             </div>
-          ` : `<p class="f2-sub">Belum ada anggota keluarga yang disimpan. Masukkan nama dan tanggal lahir di atas lalu klik <strong>Simpan ke Keluarga</strong>.</p>`}
+          `}
         </div>
       </section>
     </div>
@@ -579,26 +934,6 @@ function renderFase2CalendarTab(container) {
 
   document.getElementById('export-rahinan-ics').onclick = exportRahinanIcs;
 
-  const singleIcsBtn = document.getElementById('export-single-otonan-ics');
-  if (singleIcsBtn) {
-    singleIcsBtn.onclick = () => {
-      const nm = document.getElementById('otonan-name').value.trim() || state.otonanName || 'Saya';
-      exportSingleOtonanIcs(nm, state.otonanBirthDate);
-    };
-  }
-
-  const allIcsBtn = document.getElementById('export-all-otonan-ics');
-  if (allIcsBtn) {
-    allIcsBtn.onclick = exportAllFamilyOtonanIcs;
-  }
-
-  container.querySelectorAll('[data-ics-member]').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const member = state.familyOtonan.find((x) => x.id === btn.dataset.icsMember);
-      if (member) exportSingleOtonanIcs(member.name, member.birthDate);
-    });
-  });
-
   document.getElementById('otonan-form').addEventListener('submit', (e) => {
     e.preventDefault();
     state.otonanName = document.getElementById('otonan-name').value.trim();
@@ -609,27 +944,45 @@ function renderFase2CalendarTab(container) {
     }
   });
 
-  document.getElementById('save-otonan-btn').onclick = () => {
-    const name = document.getElementById('otonan-name').value.trim();
-    const birthDate = document.getElementById('otonan-birth').value;
-    if (!name || !birthDate) {
-      showToast('Isi nama dan tanggal lahir dulu sebelum menyimpan.');
-      return;
-    }
-    state.otonanName = '';
-    state.otonanBirthDate = birthDate;
-    localStorage.setItem('piteket_last_otonan_birth', birthDate);
-    state.familyOtonan.push({ id: String(Date.now()), name, birthDate });
-    localStorage.setItem('piteket_family_otonan', JSON.stringify(state.familyOtonan));
-    showToast(`Otonan ${name} disimpan di perangkat Anda.`);
-    renderContent();
-  };
+  const saveOtonBtn = document.getElementById('save-otonan-btn');
+  if (saveOtonBtn) {
+    saveOtonBtn.onclick = () => {
+      const name = document.getElementById('otonan-name').value.trim();
+      const birthDate = document.getElementById('otonan-birth').value;
+      if (!name || !birthDate) {
+        showToast('Isi nama dan tanggal lahir dulu sebelum menyimpan.');
+        return;
+      }
+      state.otonanName = '';
+      state.otonanBirthDate = birthDate;
+      localStorage.setItem('piteket_last_otonan_birth', birthDate);
+      state.familyOtonan.push({ id: String(Date.now()), name, birthDate });
+      scheduleCloudSync();
+      showToast(`Otonan ${name} disimpan & disinkronkan ke akun Anda!`);
+      renderContent();
+    };
+  }
+
+  const loginForOtonBtn = document.getElementById('login-for-otonan-btn');
+  if (loginForOtonBtn) loginForOtonBtn.onclick = () => openAuthModal('login');
+
+  const gateAuthBtn = document.getElementById('gate-open-auth');
+  if (gateAuthBtn) gateAuthBtn.onclick = () => openAuthModal('login');
+
+  const toggleRem = document.getElementById('toggle-email-reminders');
+  if (toggleRem) {
+    toggleRem.onchange = () => {
+      state.remindersEnabled = toggleRem.checked;
+      scheduleCloudSync();
+      showToast(state.remindersEnabled ? 'Pengingat email Otonan diaktifkan.' : 'Pengingat email Otonan dimatikan.');
+    };
+  }
 
   container.querySelectorAll('[data-del-otonan]').forEach((btn) => {
     btn.addEventListener('click', () => {
       state.familyOtonan = state.familyOtonan.filter((x) => x.id !== btn.dataset.delOtonan);
-      localStorage.setItem('piteket_family_otonan', JSON.stringify(state.familyOtonan));
-      showToast('Data Otonan dihapus.');
+      scheduleCloudSync();
+      showToast('Data Otonan dihapus dari akun.');
       renderContent();
     });
   });
@@ -691,7 +1044,7 @@ function renderChecklistsTab(container) {
       const k = cb.dataset.chkToggle;
       if (cb.checked) state.checklistChecked[k] = true;
       else delete state.checklistChecked[k];
-      localStorage.setItem('piteket_checklist_checked', JSON.stringify(state.checklistChecked));
+      scheduleCloudSync();
       renderContent();
     });
   });
@@ -705,7 +1058,7 @@ function renderChecklistsTab(container) {
       if (!val) return;
       if (!state.checklistCustom[id]) state.checklistCustom[id] = [];
       state.checklistCustom[id].push(val);
-      localStorage.setItem('piteket_checklist_custom', JSON.stringify(state.checklistCustom));
+      scheduleCloudSync();
       showToast('Catatan pribadi ditambahkan ke ceklis.');
       renderContent();
     });
@@ -717,7 +1070,7 @@ function renderChecklistsTab(container) {
       const idx = Number(btn.dataset.chkIdx);
       if (state.checklistCustom[id]) {
         state.checklistCustom[id].splice(idx, 1);
-        localStorage.setItem('piteket_checklist_custom', JSON.stringify(state.checklistCustom));
+        scheduleCloudSync();
         renderContent();
       }
     });
@@ -729,7 +1082,7 @@ function renderChecklistsTab(container) {
       Object.keys(state.checklistChecked).forEach((k) => {
         if (k.startsWith(id + '-')) delete state.checklistChecked[k];
       });
-      localStorage.setItem('piteket_checklist_checked', JSON.stringify(state.checklistChecked));
+      scheduleCloudSync();
       showToast('Centang ceklis di-reset.');
       renderContent();
     });
@@ -968,6 +1321,7 @@ function closeModal(modalId) {
 async function handleFeedbackSubmit(e) {
   e.preventDefault();
   const payload = {
+    action: 'feedback',
     nama_pengirim: document.getElementById('fb-name').value.trim(),
     hubungan_keluarga: document.getElementById('fb-relation').value,
     tab_terkait: state.activeFeedbackTopic?.tab || 'Umum',
@@ -1033,19 +1387,20 @@ document.addEventListener('DOMContentLoaded', () => {
   domSelect.value = state.domisili;
   kawSelect.value = state.kawitan;
   updateRegionBadge();
+  renderAuthBarAndBanner();
 
   domSelect.addEventListener('change', (e) => {
     state.domisili = e.target.value;
-    localStorage.setItem('piteket_domisili', state.domisili);
     updateRegionBadge();
+    scheduleCloudSync();
     renderContent();
     showToast(`Domisili diatur ke ${state.domisili}`);
   });
 
   kawSelect.addEventListener('change', (e) => {
     state.kawitan = e.target.value;
-    localStorage.setItem('piteket_kawitan', state.kawitan);
     updateRegionBadge();
+    scheduleCloudSync();
     renderContent();
     showToast(`Kawitan diatur ke ${state.kawitan}`);
   });
