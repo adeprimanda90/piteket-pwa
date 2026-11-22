@@ -1,4 +1,4 @@
-const CACHE_NAME = 'piteket-pwa-v16';
+const CACHE_NAME = 'piteket-pwa-v17';
 const STATIC_ASSETS = [
   '/',
   '/css/styles.css',

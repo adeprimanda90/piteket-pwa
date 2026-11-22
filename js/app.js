@@ -1698,10 +1698,10 @@ async function handleFeedbackSubmit(e) {
 
 
 // ======================= MENU INFO (TENTANG, VERSI, TUTORIAL GIF) ============
-const APP_VERSION = 'v1.8';
+const APP_VERSION = 'v1.8.1';
 const CHANGELOG_ENTRIES = [
   {
-    version: 'v1.8 (Saat Ini)',
+    version: 'v1.8.1 (Saat Ini)',
     date: '22 November 2026',
     title: 'Pendalaman 21 Artikel Tri Kona, Kartu Intisari Cepat, Tingkatan Nista-Madya-Utama & Topik Banten Baru',
     items: [
@@ -2182,6 +2182,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.querySelectorAll('[data-close-modal]').forEach((btn) => {
     btn.addEventListener('click', () => closeModal(btn.dataset.closeModal));
+  });
+
+  // Tutup modal otomatis saat klik di area gelap di luar kotak konten (atau tekan tombol Esc)
+  document.querySelectorAll('.modal-backdrop').forEach((backdrop) => {
+    backdrop.addEventListener('click', (e) => {
+      if (e.target === backdrop) closeModal(backdrop.id);
+    });
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      document.querySelectorAll('.modal-backdrop.open').forEach((m) => closeModal(m.id));
+    }
   });
 
   document.getElementById('feedback-form').addEventListener('submit', handleFeedbackSubmit);
