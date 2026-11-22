@@ -2,7 +2,7 @@
   "name": "Piteket — Panduan Hidup Orang Bali",
   "short_name": "Piteket",
   "description": "Teman belajar hidup sebagai orang Bali berbasis Tri Kona (Utpatti, Sthiti, Pralina), Desa Kala Patra, dan Kalender Bali.",
-  "start_url": "./index.html",
+  "start_url": "/",
   "display": "standalone",
   "background_color": "#FAF6F0",
   "theme_color": "#8C3B2B",
