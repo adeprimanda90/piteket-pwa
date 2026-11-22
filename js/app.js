@@ -11,6 +11,7 @@ import { evaluateAlaAyuningDewasa, findGoodDaysInMonth } from './dewasa-engine.j
 import { buildIcsContent, downloadIcsFile } from './ics-export.js';
 import { DEFAULT_CHECKLISTS } from './checklists.js';
 import { AuthApi, getSavedSession, saveSession, getGoogleClientId } from './auth-sync.js';
+import { runSmartSearch, buildAiContextPayload } from './smart-search.js';
 
 const REGIONS = [
   'Denpasar',
@@ -1177,7 +1178,9 @@ function renderChecklistsTab(container) {
 function renderContent() {
   const container = document.getElementById('content-area');
   const controlsBar = document.getElementById('controls-bar');
-  controlsBar.style.display = (state.tab === 'kalender' || state.tab === 'ceklis') ? 'none' : 'flex';
+  if (controlsBar) controlsBar.style.display = 'flex';
+  const cycSel = document.getElementById('cycle-filter');
+  if (cycSel) cycSel.style.display = state.tab === 'panduan' ? 'inline-block' : 'none';
 
   if (state.tab === 'kalender') {
     renderFase2CalendarTab(container);
@@ -1448,6 +1451,338 @@ async function handleFeedbackSubmit(e) {
   closeModal('feedback-modal');
 }
 
+
+// ======================= MENU INFO (TENTANG, VERSI, TUTORIAL GIF) ============
+const APP_VERSION = 'v1.5';
+const CHANGELOG_ENTRIES = [
+  {
+    version: 'v1.5 (Saat Ini)',
+    date: '22 November 2026',
+    title: 'Menu Info, Tutorial GIF Lengkap & Pencarian Pintar Hybrid (AI)',
+    items: [
+      'Menambahkan menu Info di pojok kanan atas berisi profil kolaborasi Semeton Bali & Gemini, riwayat versi, serta 4 tutorial animasi GIF.',
+      'Menghadirkan Pencarian Pintar lintas seluruh data (Tri Kona, Kalender Bali, Ceklis, Dresta 10 Wilayah, Dewasa Ayu, Glosarium) yang memahami maksud pertanyaan secara offline.',
+      'Menambahkan tombol opsional "Tanya Piteket AI" bertenaga Gemini API melalui Google Apps Script untuk pertanyaan bebas yang tetap merujuk isi Piteket.'
+    ]
+  },
+  {
+    version: 'v1.4',
+    date: '22 November 2026',
+    title: 'Masuk dengan Akun Google (Google Identity Services)',
+    items: [
+      'Menambahkan tombol resmi Masuk dengan Google berdampingan dengan login email & password.',
+      'Verifikasi token ID Google di sisi server Google Apps Script sehingga akun langsung aktif tanpa memotong kuota OTP Gmail.'
+    ]
+  },
+  {
+    version: 'v1.3',
+    date: '21 November 2026',
+    title: 'Sistem Akun Privat, Sinkronisasi Lintas Perangkat & Pengingat Otonan',
+    items: [
+      'Pendaftaran akun dengan konfirmasi kode OTP 6 digit & fitur Lupa Password via Gmail.',
+      'Sinkronisasi otomatis daftar Otonan, ceklis, dan Profil Dresta ke akun pengguna lintas perangkat.',
+      'Pengingat Otonan langsung di dalam aplikasi (lonceng & spanduk) serta email otomatis H-3, H-1, dan Hari H pukul 07:00 WITA.'
+    ]
+  },
+  {
+    version: 'v1.2',
+    date: '21 November 2026',
+    title: 'Kalender Bali Klasik (Bangbang Gde Rawi) & Ala Ayuning Dewasa',
+    items: [
+      'Tampilan Kalender Bali cetak vertikal per Wuku dengan tombol pindah ke tampilan bulanan standar.',
+      'Perhitungan 10 Wewaran lengkap (Ekawara sampai Dasawara), Ingkel, Jejepan, Urip, serta mesin otomatis Ala Ayuning Dewasa & Pencari Hari Baik.'
+    ]
+  },
+  {
+    version: 'v1.1',
+    date: '20 November 2026',
+    title: 'Kalender Saka/Pawukon Offline & 6 Ceklis Persiapan Upacara',
+    items: [
+      'Mesin Kalender Saka (Pangalantaka) & Pawukon 100% offline, hitung mundur Rahinan, dan kalkulator Otonan.',
+      'Penambahan 6 ceklis persiapan interaktif (Galungan/Kuningan, Nyepi, Otonan, Nelubulanin, Pawiwahan, Ngaben).'
+    ]
+  },
+  {
+    version: 'v1.0',
+    date: '19 November 2026',
+    title: 'Rilis Perdana Piteket PWA & 97 Entri CMS Keluarga',
+    items: [
+      'Fondasi PWA offline berbasis Google Sheets CMS + GitHub + Cloudflare Pages.',
+      '97 entri panduan Siklus Tri Kona (Utpatti, Sthiti, Pralina), Catatan Dresta 10 wilayah, Dewasa Ayu, Glosarium Aksara Bali, dan tombol Beri Piteket.'
+    ]
+  }
+];
+
+const TUTORIAL_GIFS = [
+  {
+    title: '1. Mengatur Profil Desa Kala Patra (Domisili & Kawitan)',
+    gif: './assets/tutorial-1-dresta.gif',
+    desc: 'Pilih Domisili sekarang dan Asal Kawitan keluarga agar catatan adat di setiap panduan dan tab Catatan Dresta otomatis menyorot wilayah Anda.'
+  },
+  {
+    title: '2. Membaca Kalender Bali 10 Wewaran & Mencari Hari Baik',
+    gif: './assets/tutorial-2-kalender.gif',
+    desc: 'Ketuk tanggal pada tampilan klasik per Wuku untuk melihat 10 Wewaran dan Ala Ayuning Dewasa, atau gunakan Pencari Hari Baik untuk menyaring Dewasa Ayu bulan ini.'
+  },
+  {
+    title: '3. Login Google, Sinkronisasi & Pengingat Otonan Otomatis',
+    gif: './assets/tutorial-3-otonan.gif',
+    desc: 'Masuk dengan Google (1 klik) atau email agar jadwal Otonan keluarga dan ceklis tersinkron lintas HP/laptop serta mendapat pengingat H-3, H-1, dan Hari H.'
+  },
+  {
+    title: '4. Pencarian Pintar Hybrid & Mengirim Piteket / Koreksi',
+    gif: './assets/tutorial-4-search-piteket.gif',
+    desc: 'Ketik pertanyaan sehari-hari di kolom pencarian untuk jawaban instan lintas topik/kalender, klik Tanya Piteket AI bila perlu rangkuman, dan gunakan Beri Piteket untuk koreksi adat desa.'
+  }
+];
+
+let activeInfoTab = 'tentang';
+let smartSearchTimer = null;
+let lastSmartSearchOut = null;
+let smartShowAll = false;
+
+function openInfoModal(tab = 'tentang') {
+  activeInfoTab = tab;
+  document.querySelectorAll('.info-tab-btn').forEach((b) => {
+    b.classList.toggle('active', b.dataset.infoTab === tab);
+  });
+  renderInfoModalBody();
+  document.getElementById('info-modal').classList.add('open');
+}
+
+function renderInfoModalBody() {
+  const body = document.getElementById('info-modal-body');
+  if (!body) return;
+
+  if (activeInfoTab === 'tentang') {
+    body.innerHTML = `
+      <div class="info-hero-note">
+        <div class="info-version-pill">Piteket PWA · ${APP_VERSION}</div>
+        <h4>Dikembangkan Bersama oleh Semeton Bali &amp; Gemini</h4>
+        <p><strong>Piteket</strong> adalah ruang belajar terbuka yang dikembangkan bersama oleh <strong>Semeton Bali dan Gemini</strong> untuk membantu keluarga dan generasi muda Bali memahami alur kehidupan <em>Tri Kona</em> (Utpatti, Sthiti, Pralina), <em>Panca Yadnya</em>, Kalender Bali, serta ragam <em>Desa Kala Patra</em> di 10 wilayah.</p>
+        <p>Aplikasi ini lahir dari semangat <em>nunas piteket</em> — bukan untuk menggantikan petunjuk Sulinggih, Pemangku, orang tua, maupun <em>awig-awig</em> desa adat setempat, melainkan sebagai catatan belajar bersama yang rapi, gratis, dan tetap dapat dibuka meski tanpa sinyal.</p>
+      </div>
+      <div class="info-pillars">
+        <div class="info-pillar"><strong>100% Gratis &amp; Offline</strong><span>Kalender Bali 10 Wewaran, Ala Ayuning Dewasa, ceklis, dan materi utama tetap berjalan tanpa internet.</span></div>
+        <div class="info-pillar"><strong>Kolaborasi Keluarga</strong><span>Setiap catatan bisa dikoreksi oleh panglingsir dan semeton lewat tombol <em>Beri Piteket</em>.</span></div>
+      </div>
+    `;
+  } else if (activeInfoTab === 'versi') {
+    body.innerHTML = `
+      <div class="changelog-list">
+        ${CHANGELOG_ENTRIES.map((entry, i) => `
+          <div class="changelog-card ${i === 0 ? 'latest' : ''}">
+            <div class="changelog-head">
+              <span class="changelog-ver">${entry.version}</span>
+              <span class="changelog-date">${entry.date}</span>
+            </div>
+            <h5>${entry.title}</h5>
+            <ul>${entry.items.map((it) => `<li>${it}</li>`).join('')}</ul>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  } else {
+    body.innerHTML = `
+      <p class="tutorial-intro">Ikuti 4 panduan singkat bergambar di bawah ini untuk memaksimalkan seluruh fitur Piteket:</p>
+      <div class="tutorial-grid">
+        ${TUTORIAL_GIFS.map((t) => `
+          <article class="tutorial-card">
+            <h5>${t.title}</h5>
+            <img src="${t.gif}" alt="${t.title}" class="tutorial-gif" loading="lazy" />
+            <p>${t.desc}</p>
+          </article>
+        `).join('')}
+      </div>
+    `;
+  }
+}
+
+function getSearchDataset() {
+  return {
+    todayIso,
+    calYear: state.calYear,
+    calMonth: state.calMonth,
+    domisili: state.domisili,
+    kawitan: state.kawitan,
+    guides: state.guides,
+    dresta: state.dresta,
+    dewasa: state.dewasa,
+    glosarium: state.glosarium,
+    checklists: DEFAULT_CHECKLISTS
+  };
+}
+
+function renderSmartSearchPanel() {
+  const panel = document.getElementById('smart-search-panel');
+  if (!panel) return;
+  const q = state.search.trim();
+  if (q.length < 2) {
+    panel.style.display = 'none';
+    panel.innerHTML = '';
+    lastSmartSearchOut = null;
+    smartShowAll = false;
+    return;
+  }
+
+  const out = runSmartSearch(q, getSearchDataset());
+  lastSmartSearchOut = out;
+  panel.style.display = 'block';
+
+  const visibleResults = smartShowAll ? out.results : out.results.slice(0, 5);
+  const moreCount = out.results.length - visibleResults.length;
+
+  panel.innerHTML = `
+    <div class="smart-panel-head">
+      <div>
+        <strong>Pencarian Pintar Lintas Data</strong>
+        <span class="smart-count">${out.totalMatches} hasil paling relevan untuk "${q.replace(/</g, '&lt;')}"</span>
+      </div>
+      <div class="smart-head-btns">
+        <button type="button" class="btn-ai-ask" id="btn-ask-piteket-ai">✨ Tanya Piteket AI</button>
+        <button type="button" class="btn-smart-clear" id="btn-smart-clear" title="Bersihkan pencarian">✕</button>
+      </div>
+    </div>
+
+    <div id="smart-ai-slot"></div>
+
+    ${out.instantCards.length ? `
+      <div class="smart-instant-list">
+        ${out.instantCards.map((c, idx) => `
+          <div class="smart-instant-card">
+            <div class="smart-badge">${c.badge}</div>
+            <div class="smart-instant-title">${c.title}</div>
+            <div class="smart-instant-sum">${c.summary}</div>
+            <button type="button" class="btn btn-outline btn-sm smart-instant-act" data-instant-idx="${idx}">${c.actionLabel}</button>
+          </div>
+        `).join('')}
+      </div>
+    ` : ''}
+
+    ${visibleResults.length ? `
+      <div class="smart-results-list">
+        ${visibleResults.map((r, idx) => `
+          <button type="button" class="smart-result-row" data-result-idx="${idx}">
+            <div class="smart-row-top">
+              <span class="smart-badge">${r.badge}</span>
+              <span class="smart-row-title">${r.title}</span>
+            </div>
+            <div class="smart-row-snippet">${String(r.snippet || '').slice(0, 145)}${String(r.snippet || '').length > 145 ? '…' : ''}</div>
+          </button>
+        `).join('')}
+      </div>
+      ${moreCount > 0 ? `<button type="button" class="link-btn" id="btn-smart-more" style="margin-top:8px;">Lihat ${moreCount} hasil lainnya</button>` : ''}
+    ` : (!out.instantCards.length ? `
+      <div class="smart-empty">Belum ada kecocokan langsung di pencarian lokal. Klik <strong>✨ Tanya Piteket AI</strong> di kanan atas agar Gemini membantu merangkum maksud pertanyaan Anda.</div>
+    ` : '')}
+  `;
+
+  document.getElementById('btn-smart-clear').onclick = () => {
+    state.search = '';
+    document.getElementById('search-input').value = '';
+    renderSmartSearchPanel();
+    renderContent();
+  };
+
+  document.getElementById('btn-ask-piteket-ai').onclick = () => handleAskPiteketAi();
+
+  const moreBtn = document.getElementById('btn-smart-more');
+  if (moreBtn) {
+    moreBtn.onclick = () => {
+      smartShowAll = true;
+      renderSmartSearchPanel();
+    };
+  }
+
+  panel.querySelectorAll('[data-instant-idx]').forEach((btn) => {
+    btn.onclick = () => {
+      const card = out.instantCards[Number(btn.dataset.instantIdx)];
+      if (!card) return;
+      if (card.actionType === 'open-date' && card.targetIso) {
+        const parts = card.targetIso.split('-').map(Number);
+        state.selectedIso = card.targetIso;
+        state.calYear = parts[0];
+        state.calMonth = parts[1] - 1;
+        renderCalendar(card.targetIso);
+        switchTab('kalender');
+      } else if (card.actionType === 'open-finder') {
+        state.dewasaFinderCat = card.finderCat || 'usaha';
+        switchTab('kalender');
+        setTimeout(() => {
+          const el = document.getElementById('dewasa-finder-section') || document.getElementById('content-area');
+          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 80);
+      } else if (card.actionType === 'open-otonan') {
+        switchTab('kalender');
+        setTimeout(() => {
+          const el = document.getElementById('otonan-section') || document.getElementById('content-area');
+          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 80);
+      }
+    };
+  });
+
+  panel.querySelectorAll('[data-result-idx]').forEach((btn) => {
+    btn.onclick = () => {
+      const r = visibleResults[Number(btn.dataset.resultIdx)];
+      if (!r) return;
+      if (r.type === 'guide') {
+        openGuideModal(r.id);
+      } else if (r.type === 'checklist') {
+        switchTab('ceklis');
+        document.getElementById('content-area').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      } else if (r.type === 'dresta') {
+        state.search = r.filterTerm || '';
+        document.getElementById('search-input').value = state.search;
+        switchTab('dresta');
+        document.getElementById('content-area').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      } else if (r.type === 'dewasa') {
+        state.search = r.filterTerm || '';
+        document.getElementById('search-input').value = state.search;
+        switchTab('dewasa');
+        document.getElementById('content-area').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      } else if (r.type === 'glosarium') {
+        state.search = r.filterTerm || '';
+        document.getElementById('search-input').value = state.search;
+        switchTab('aksara');
+        document.getElementById('content-area').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    };
+  });
+}
+
+async function handleAskPiteketAi() {
+  const slot = document.getElementById('smart-ai-slot');
+  const btn = document.getElementById('btn-ask-piteket-ai');
+  const q = state.search.trim();
+  if (!slot || !q) return;
+
+  if (btn) btn.disabled = true;
+  slot.innerHTML = '<div class="smart-ai-box loading">✨ Piteket AI sedang membaca materi &amp; kalender yang relevan...</div>';
+  try {
+    const contextText = buildAiContextPayload(lastSmartSearchOut, getSearchDataset());
+    const res = await AuthApi.askAi(q, contextText);
+    if (!res.ok) {
+      slot.innerHTML = `<div class="smart-ai-box error">${res.error || 'Tidak dapat menghubungi Piteket AI saat ini.'}</div>`;
+    } else {
+      const safeHtml = String(res.answer)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\n/g, '<br/>');
+      slot.innerHTML = `
+        <div class="smart-ai-box">
+          <div class="smart-ai-label">✨ Rangkuman Piteket AI (berdasarkan data Piteket)</div>
+          <div class="smart-ai-text">${safeHtml}</div>
+        </div>
+      `;
+    }
+  } catch {
+    slot.innerHTML = '<div class="smart-ai-box error">Tanya Piteket AI memerlukan koneksi internet. Gunakan hasil Pencarian Pintar Lokal di bawah yang tetap berjalan offline.</div>';
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
 function switchTab(tabName) {
   state.tab = tabName;
   document.querySelectorAll('.tab-btn').forEach((b) => {
@@ -1515,7 +1850,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.getElementById('search-input').addEventListener('input', (e) => {
     state.search = e.target.value;
-    renderContent();
+    smartShowAll = false;
+    clearTimeout(smartSearchTimer);
+    smartSearchTimer = setTimeout(() => {
+      renderSmartSearchPanel();
+      renderContent();
+    }, 160);
+  });
+
+  const openInfoBtn = document.getElementById('open-info-btn');
+  if (openInfoBtn) openInfoBtn.addEventListener('click', () => openInfoModal('tentang'));
+  document.querySelectorAll('.info-tab-btn').forEach((b) => {
+    b.addEventListener('click', () => openInfoModal(b.dataset.infoTab));
   });
 
   document.getElementById('cycle-filter').addEventListener('change', (e) => {

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'piteket-pwa-v9';
+const CACHE_NAME = 'piteket-pwa-v10';
 const STATIC_ASSETS = [
   '/',
   '/css/styles.css',
@@ -8,6 +8,11 @@ const STATIC_ASSETS = [
   '/js/dewasa-engine.js',
   '/js/ics-export.js',
   '/js/checklists.js',
+  '/js/smart-search.js',
+  '/assets/tutorial-1-dresta.gif',
+  '/assets/tutorial-2-kalender.gif',
+  '/assets/tutorial-3-otonan.gif',
+  '/assets/tutorial-4-search-piteket.gif',
   '/manifest.json',
   '/icons/icon.svg'
 ];

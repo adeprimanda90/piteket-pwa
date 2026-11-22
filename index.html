@@ -23,8 +23,11 @@
           <p class="brand-sub">Teman belajar hidup sebagai orang Bali — merangkum siklus <strong>Tri Kona</strong> (Utpatti · Sthiti · Pralina), Panca Yadnya, Dresta 10 Wilayah, Ceklis Persiapan, dan Kalender Bali Offline.</p>
           <span class="region-pill" id="region-label">Domisili: Denpasar · Kawitan: Karangasem</span>
         </div>
-        <div class="auth-bar" id="auth-bar">
-          <button type="button" class="btn-hero-auth" id="open-auth-btn">Masuk / Daftar Akun</button>
+        <div class="hero-actions">
+          <button type="button" class="btn-hero-info" id="open-info-btn" title="Tentang Piteket, Versi & Tutorial">ℹ️ Info</button>
+          <div class="auth-bar" id="auth-bar">
+            <button type="button" class="btn-hero-auth" id="open-auth-btn">Masuk / Daftar Akun</button>
+          </div>
         </div>
       </div>
     </div>
@@ -96,15 +99,18 @@
       <button class="tab-btn" data-tab="aksara">Glosarium Aksara Bali</button>
     </nav>
 
-    <div class="controls-bar" id="controls-bar">
-      <input type="search" id="search-input" class="search-input" placeholder="Cari topik: ngaben, nyekah, cuntaka, melayat, bayi, pawiwahan, banten..." />
-      <select id="cycle-filter" class="filter-select" aria-label="Filter Siklus Tri Kona">
-        <option value="ALL">Semua Siklus (Tri Kona)</option>
-        <option value="Utpatti">Utpatti (Lahir · Brahma)</option>
-        <option value="Sthiti">Sthiti (Hidup · Wisnu)</option>
-        <option value="Pralina">Pralina (Kembali · Siwa)</option>
-      </select>
-    </div>
+    <section class="smart-search-wrap" aria-label="Pencarian Pintar Piteket">
+      <div class="controls-bar" id="controls-bar">
+        <input type="search" id="search-input" class="search-input" placeholder="Tanya atau cari apa saja: kapan Galungan, upacara 3 bulanan bayi, hari baik usaha, cuntaka..." />
+        <select id="cycle-filter" class="filter-select" aria-label="Filter Siklus Tri Kona">
+          <option value="ALL">Semua Siklus (Tri Kona)</option>
+          <option value="Utpatti">Utpatti (Lahir · Brahma)</option>
+          <option value="Sthiti">Sthiti (Hidup · Wisnu)</option>
+          <option value="Pralina">Pralina (Kembali · Siwa)</option>
+        </select>
+      </div>
+      <div id="smart-search-panel" class="smart-search-panel" style="display:none;" aria-live="polite"></div>
+    </section>
 
     <section id="content-area" aria-live="polite"></section>
   </main>
@@ -168,6 +174,25 @@
         <button class="modal-close" data-close-modal="auth-modal" aria-label="Tutup">&times;</button>
       </div>
       <div id="auth-modal-body"></div>
+    </div>
+  </div>
+
+  
+  <div class="modal-backdrop" id="info-modal" role="dialog" aria-modal="true">
+    <div class="modal-box" style="max-width:680px;">
+      <div class="modal-header">
+        <div>
+          <div class="aksara" style="color:#8C3B2B;font-size:1.15rem;">ᬧᬶᬢᭂᬓᭂᬢ᭄</div>
+          <h3 style="margin:2px 0 0;">Tentang Piteket &amp; Panduan Penggunaan</h3>
+        </div>
+        <button class="modal-close" data-close-modal="info-modal" aria-label="Tutup">&times;</button>
+      </div>
+      <div class="info-tabs" role="tablist">
+        <button type="button" class="info-tab-btn active" data-info-tab="tentang">Tentang</button>
+        <button type="button" class="info-tab-btn" data-info-tab="versi">Versi &amp; Pembaruan</button>
+        <button type="button" class="info-tab-btn" data-info-tab="tutorial">Tutorial (GIF)</button>
+      </div>
+      <div id="info-modal-body"></div>
     </div>
   </div>
 

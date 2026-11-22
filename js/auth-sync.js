@@ -70,5 +70,8 @@ export const AuthApi = {
     callApi({ action: 'sync_load', token }),
 
   syncSave: (token, data) =>
-    callApi({ action: 'sync_save', token, ...data })
+    callApi({ action: 'sync_save', token, ...data }),
+
+  askAi: (query, contextText) =>
+    callApi({ action: 'ask_ai', query, contextText })
 };

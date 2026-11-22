@@ -40,6 +40,7 @@ function checkConfig() {
   const branch = props.getProperty('GITHUB_BRANCH') || 'main';
   const hasToken = props.getProperty('GITHUB_TOKEN') ? 'Tersimpan' : '(belum diisi)';
   const hasGoogleId = props.getProperty('GOOGLE_CLIENT_ID') ? 'Tersimpan' : '(belum diisi — opsional untuk Login Google)';
+  const hasGeminiKey = props.getProperty('GEMINI_API_KEY') ? 'Tersimpan' : '(belum diisi — opsional untuk Tanya Piteket AI)';
   const quota = MailApp.getRemainingDailyQuota();
   SpreadsheetApp.getUi().alert(
     'Konfigurasi Piteket CMS:\n' +
@@ -48,6 +49,7 @@ function checkConfig() {
     '• GITHUB_BRANCH: ' + branch + '\n' +
     '• GITHUB_TOKEN: ' + hasToken + '\n' +
     '• GOOGLE_CLIENT_ID: ' + hasGoogleId + '\n' +
+    '• GEMINI_API_KEY: ' + hasGeminiKey + '\n' +
     '• Sisa Kuota Email Gmail Hari Ini: ' + quota + ' penerima'
   );
 }
@@ -197,6 +199,7 @@ function doPost(e) {
     if (action === 'reset_password') return handleResetPassword(body);
     if (action === 'sync_load') return handleSyncLoad(body);
     if (action === 'sync_save') return handleSyncSave(body);
+    if (action === 'ask_ai') return handleAskAi(body);
 
     return jsonResponse({ ok: false, error: 'Aksi tidak dikenali.' });
   } catch (err) {
@@ -678,4 +681,65 @@ function kirimPengingatOtonanHarian() {
     }
   }
   Logger.log('Pengingat Otonan terkirim: ' + sentCount);
+}
+
+// ======================= 5. TANYA PITEKET AI (GEMINI FREE TIER) ==============
+function handleAskAi(body) {
+  const props = PropertiesService.getScriptProperties();
+  const apiKey = String(props.getProperty('GEMINI_API_KEY') || '').trim();
+  if (!apiKey) {
+    return jsonResponse({
+      ok: false,
+      notConfigured: true,
+      error: 'Fitur Tanya Piteket AI opsional belum diaktifkan (GEMINI_API_KEY belum diisi di Script Properties Apps Script). Pencarian Pintar Lokal tetap aktif 100%.'
+    });
+  }
+
+  const query = String(body.query || '').trim().slice(0, 400);
+  const contextText = String(body.contextText || '').trim().slice(0, 4200);
+  if (!query) return jsonResponse({ ok: false, error: 'Pertanyaan kosong.' });
+
+  const configuredModel = String(props.getProperty('GEMINI_MODEL') || '').trim();
+  const modelsToTry = configuredModel
+    ? [configuredModel, 'gemini-2.5-flash', 'gemini-2.5-flash-lite']
+    : ['gemini-2.5-flash', 'gemini-2.5-flash-lite'];
+
+  const promptText =
+    'Kamu adalah asisten belajar ramah di aplikasi Piteket (Teman Belajar Hidup Orang Bali, dikembangkan bersama oleh Semeton Bali dan Gemini).\n' +
+    'Aturan ketat:\n' +
+    '1. Jawab dalam Bahasa Indonesia yang hangat, singkat, terstruktur (3-5 kalimat atau poin ringkas), dan mudah dipahami keluarga Bali.\n' +
+    '2. HANYA rujuk data dari [DATA KALENDER] dan [MATERI PITEKET] di bawah. Jika tidak ada di materi, katakan jujur belum tercatat di Piteket dan sarankan menanyakan ke orang tua/panglingsir atau Jero Mangku.\n' +
+    '3. Akhiri dengan 1 kalimat singkat pengingat Desa Kala Patra serta arahkan tab/topik Piteket mana yang bisa dibuka.\n\n' +
+    contextText + '\n\n' +
+    'PERTANYAAN PENGGUNA: ' + query;
+
+  let lastErr = 'Gagal menghubungi Gemini API.';
+  for (let m = 0; m < modelsToTry.length; m++) {
+    const model = modelsToTry[m];
+    const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':generateContent?key=' + encodeURIComponent(apiKey);
+    const res = UrlFetchApp.fetch(url, {
+      method: 'post',
+      contentType: 'application/json',
+      payload: JSON.stringify({
+        contents: [{ parts: [{ text: promptText }] }],
+        generationConfig: { temperature: 0.3, maxOutputTokens: 450 }
+      }),
+      muteHttpExceptions: true
+    });
+    const code = res.getResponseCode();
+    if (code === 200) {
+      const parsed = JSON.parse(res.getContentText());
+      const answer = parsed && parsed.candidates && parsed.candidates[0] &&
+        parsed.candidates[0].content && parsed.candidates[0].content.parts &&
+        parsed.candidates[0].content.parts[0] && parsed.candidates[0].content.parts[0].text;
+      if (answer) {
+        return jsonResponse({ ok: true, answer: String(answer).trim(), model: model });
+      }
+    } else if (code === 429) {
+      lastErr = 'Kuota gratis Gemini API sedang padat sementara. Coba lagi sebentar lagi, atau gunakan hasil Pencarian Pintar Lokal di bawah.';
+    } else {
+      lastErr = 'Gemini API mengembalikan status ' + code + '.';
+    }
+  }
+  return jsonResponse({ ok: false, error: lastErr });
 }
