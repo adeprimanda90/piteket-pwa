@@ -10,7 +10,7 @@ import {
 import { evaluateAlaAyuningDewasa, findGoodDaysInMonth } from './dewasa-engine.js';
 import { buildIcsContent, downloadIcsFile } from './ics-export.js';
 import { DEFAULT_CHECKLISTS } from './checklists.js';
-import { AuthApi, getSavedSession, saveSession } from './auth-sync.js';
+import { AuthApi, getSavedSession, saveSession, getGoogleClientId } from './auth-sync.js';
 
 const REGIONS = [
   'Denpasar',
@@ -117,6 +117,9 @@ function renderAuthBarAndBanner() {
     document.getElementById('hero-logout-btn').onclick = () => {
       state.session = null;
       saveSession(null);
+      if (window.google && window.google.accounts && window.google.accounts.id) {
+        window.google.accounts.id.disableAutoSelect();
+      }
       state.syncStatus = '';
       renderAuthBarAndBanner();
       renderContent();
@@ -196,6 +199,78 @@ function applyCloudData(cloud) {
   updateRegionBadge();
 }
 
+
+let googleGsiInitialized = false;
+
+async function handleGoogleCredentialResponse(response) {
+  const msg = document.getElementById('auth-msg');
+  if (!response || !response.credential) {
+    if (msg) msg.textContent = 'Login Google dibatalkan.';
+    return;
+  }
+  if (msg) msg.textContent = 'Memverifikasi akun Google...';
+  try {
+    const res = await AuthApi.googleLogin(response.credential);
+    if (!res.ok) {
+      if (msg) msg.textContent = res.error || 'Gagal masuk dengan Google.';
+      return;
+    }
+    state.session = { token: res.token, user: res.user };
+    saveSession(state.session);
+    if (res.cloud) applyCloudData(res.cloud);
+    else scheduleCloudSync();
+    state.syncStatus = `Tersinkron ke @${res.user.username}`;
+    closeModal('auth-modal');
+    renderAuthBarAndBanner();
+    renderContent();
+    showToast(res.isNewUser
+      ? `Akun Google @${res.user.username} siap! Catatan Anda kini tersinkron.`
+      : `Rahajeng rauh, @${res.user.username}!`);
+  } catch (err) {
+    if (msg) msg.textContent = err.message;
+  }
+}
+
+function mountGoogleSignInButton(modeText = 'signin_with', attempt = 0) {
+  const clientId = getGoogleClientId();
+  const wrap = document.getElementById('google-auth-wrap');
+  const slot = document.getElementById('google-btn-slot');
+  if (!wrap || !slot) return;
+  if (!clientId) {
+    wrap.style.display = 'none';
+    return;
+  }
+  wrap.style.display = 'block';
+
+  if (window.google && window.google.accounts && window.google.accounts.id) {
+    if (!googleGsiInitialized) {
+      window.google.accounts.id.initialize({
+        client_id: clientId,
+        callback: handleGoogleCredentialResponse,
+        auto_select: false
+      });
+      googleGsiInitialized = true;
+    }
+    slot.innerHTML = '';
+    const btnWidth = Math.min(340, Math.max(240, wrap.clientWidth || 320));
+    window.google.accounts.id.renderButton(slot, {
+      theme: 'outline',
+      size: 'large',
+      text: modeText,
+      shape: 'pill',
+      width: btnWidth,
+      locale: 'id'
+    });
+    return;
+  }
+
+  if (attempt < 12) {
+    setTimeout(() => mountGoogleSignInButton(modeText, attempt + 1), 250);
+  } else {
+    slot.innerHTML = '<div class="google-offline-note">Tombol Google memerlukan koneksi internet. Gunakan form di bawah saat offline.</div>';
+  }
+}
+
 // ======================= MODAL AKUN (LOGIN / DAFTAR / OTP / LUPA PW) =========
 function openAuthModal(view = 'login') {
   state.authView = view;
@@ -212,6 +287,10 @@ function renderAuthModalBody() {
     titleEl.textContent = 'Masuk ke Akun Piteket';
     subEl.textContent = 'Catatan Otonan, Ceklis, dan Profil Dresta Anda otomatis ikut di perangkat mana pun.';
     bodyEl.innerHTML = `
+      <div id="google-auth-wrap" class="google-auth-wrap" style="display:none;">
+        <div id="google-btn-slot" class="google-btn-slot"></div>
+        <div class="auth-divider">atau dengan email &amp; password</div>
+      </div>
       <form id="auth-login-form">
         <div class="form-group">
           <label for="login-id">Email atau Username</label>
@@ -229,6 +308,7 @@ function renderAuthModalBody() {
         <button type="button" class="link-btn" id="goto-register">Belum punya akun? Daftar</button>
       </div>
     `;
+    mountGoogleSignInButton('signin_with');
     document.getElementById('goto-forgot').onclick = () => { state.authView = 'forgot'; renderAuthModalBody(); };
     document.getElementById('goto-register').onclick = () => { state.authView = 'register'; renderAuthModalBody(); };
     document.getElementById('auth-login-form').onsubmit = async (e) => {
@@ -268,6 +348,10 @@ function renderAuthModalBody() {
     titleEl.textContent = 'Daftar Akun Piteket';
     subEl.textContent = 'Kode konfirmasi 6 digit akan dikirim langsung ke email Anda.';
     bodyEl.innerHTML = `
+      <div id="google-auth-wrap" class="google-auth-wrap" style="display:none;">
+        <div id="google-btn-slot" class="google-btn-slot"></div>
+        <div class="auth-divider">atau dengan email &amp; password</div>
+      </div>
       <form id="auth-reg-form">
         <div class="form-group">
           <label for="reg-user">Username</label>
@@ -288,6 +372,7 @@ function renderAuthModalBody() {
         <button type="button" class="link-btn" id="goto-login">Sudah punya akun? Masuk</button>
       </div>
     `;
+    mountGoogleSignInButton('signup_with');
     document.getElementById('goto-login').onclick = () => { state.authView = 'login'; renderAuthModalBody(); };
     document.getElementById('auth-reg-form').onsubmit = async (e) => {
       e.preventDefault();

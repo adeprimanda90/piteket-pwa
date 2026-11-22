@@ -7,6 +7,10 @@ import { PITEKET_CONFIG } from './config.js';
 
 const STORAGE_SESSION_KEY = 'piteket_auth_session';
 
+export function getGoogleClientId() {
+  return String(PITEKET_CONFIG.googleClientId || '').trim();
+}
+
 export function getSavedSession() {
   try {
     const raw = localStorage.getItem(STORAGE_SESSION_KEY);
@@ -52,6 +56,9 @@ export const AuthApi = {
 
   login: (identifier, password) =>
     callApi({ action: 'login', identifier, password }),
+
+  googleLogin: (credential) =>
+    callApi({ action: 'google_login', credential }),
 
   forgotPassword: (email) =>
     callApi({ action: 'forgot_password', email }),

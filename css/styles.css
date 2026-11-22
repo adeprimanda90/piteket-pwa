@@ -1374,3 +1374,40 @@ footer {
   height: 16px;
   accent-color: var(--primary);
 }
+
+/* Google Sign-In (Tahap B+) */
+.google-auth-wrap {
+  margin-bottom: 14px;
+}
+
+.google-btn-slot {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 44px;
+}
+
+.google-offline-note {
+  font-size: 0.8rem;
+  color: var(--ink-muted);
+  text-align: center;
+  margin-top: 4px;
+}
+
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 14px 0 12px;
+  color: var(--ink-muted);
+  font-size: 0.78rem;
+  text-transform: lowercase;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}

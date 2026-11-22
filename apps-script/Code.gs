@@ -39,6 +39,7 @@ function checkConfig() {
   const repo = props.getProperty('GITHUB_REPO') || '(belum diisi)';
   const branch = props.getProperty('GITHUB_BRANCH') || 'main';
   const hasToken = props.getProperty('GITHUB_TOKEN') ? 'Tersimpan' : '(belum diisi)';
+  const hasGoogleId = props.getProperty('GOOGLE_CLIENT_ID') ? 'Tersimpan' : '(belum diisi — opsional untuk Login Google)';
   const quota = MailApp.getRemainingDailyQuota();
   SpreadsheetApp.getUi().alert(
     'Konfigurasi Piteket CMS:\n' +
@@ -46,6 +47,7 @@ function checkConfig() {
     '• GITHUB_REPO: ' + repo + '\n' +
     '• GITHUB_BRANCH: ' + branch + '\n' +
     '• GITHUB_TOKEN: ' + hasToken + '\n' +
+    '• GOOGLE_CLIENT_ID: ' + hasGoogleId + '\n' +
     '• Sisa Kuota Email Gmail Hari Ini: ' + quota + ' penerima'
   );
 }
@@ -190,6 +192,7 @@ function doPost(e) {
     if (action === 'register') return handleRegister(body);
     if (action === 'verify_email') return handleVerifyEmail(body);
     if (action === 'login') return handleLogin(body);
+    if (action === 'google_login') return handleGoogleLogin(body);
     if (action === 'forgot_password') return handleForgotPassword(body);
     if (action === 'reset_password') return handleResetPassword(body);
     if (action === 'sync_load') return handleSyncLoad(body);
@@ -330,6 +333,9 @@ function handleLogin(body) {
       }
       const salt = String(rows[i][4]);
       const expectedHash = String(rows[i][3]);
+      if (expectedHash === 'GOOGLE_OAUTH') {
+        return jsonResponse({ ok: false, error: 'Akun ini terdaftar lewat Google. Klik tombol "Masuk dengan Google" di atas, atau gunakan Lupa Password untuk membuat password manual.' });
+      }
       if (sha256Hex(salt + ':' + password) !== expectedHash) {
         return jsonResponse({ ok: false, error: 'Password salah.' });
       }
@@ -349,6 +355,106 @@ function handleLogin(body) {
     }
   }
   return jsonResponse({ ok: false, error: 'Akun tidak ditemukan. Periksa email/username Anda.' });
+}
+
+
+function handleGoogleLogin(body) {
+  const props = PropertiesService.getScriptProperties();
+  const expectedClientId = String(props.getProperty('GOOGLE_CLIENT_ID') || '').trim();
+  if (!expectedClientId) {
+    return jsonResponse({ ok: false, error: 'GOOGLE_CLIENT_ID belum diatur di Script Properties Google Apps Script.' });
+  }
+
+  const credential = String(body.credential || '').trim();
+  if (!credential) {
+    return jsonResponse({ ok: false, error: 'Token Google kosong.' });
+  }
+
+  const verifyUrl = 'https://oauth2.googleapis.com/tokeninfo?id_token=' + encodeURIComponent(credential);
+  const res = UrlFetchApp.fetch(verifyUrl, { muteHttpExceptions: true });
+  if (res.getResponseCode() !== 200) {
+    return jsonResponse({ ok: false, error: 'Verifikasi token Google gagal atau sudah kedaluwarsa. Silakan coba lagi.' });
+  }
+
+  let info = {};
+  try {
+    info = JSON.parse(res.getContentText());
+  } catch (e) {
+    return jsonResponse({ ok: false, error: 'Respons verifikasi Google tidak valid.' });
+  }
+
+  const validIss = info.iss === 'accounts.google.com' || info.iss === 'https://accounts.google.com';
+  const emailVerified = info.email_verified === 'true' || info.email_verified === true;
+  const notExpired = !info.exp || Number(info.exp) * 1000 > Date.now();
+
+  if (info.aud !== expectedClientId || !validIss || !emailVerified || !notExpired || !info.sub || !info.email) {
+    return jsonResponse({ ok: false, error: 'Token Google tidak sesuai dengan aplikasi Piteket.' });
+  }
+
+  const email = String(info.email).trim().toLowerCase();
+  const googleSub = String(info.sub).trim();
+  const displayName = String(info.name || info.given_name || email.split('@')[0]).trim();
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const { uSheet, dSheet } = ensurePrivateTabs();
+    const rows = uSheet.getDataRange().getValues();
+    const token = generateToken();
+    const now = Utilities.formatDate(new Date(), 'Asia/Makassar', 'yyyy-MM-dd HH:mm:ss');
+
+    // Cari akun berdasarkan email atau google sub
+    for (let i = 1; i < rows.length; i++) {
+      const existingEmail = String(rows[i][2]).trim().toLowerCase();
+      const existingSalt = String(rows[i][4]).trim();
+      if (existingEmail === email || existingSalt === 'google:' + googleSub) {
+        uSheet.getRange(i + 1, 6).setValue('AKTIF');
+        uSheet.getRange(i + 1, 7).setValue('');
+        uSheet.getRange(i + 1, 8).setValue('');
+        uSheet.getRange(i + 1, 9).setValue(token);
+        uSheet.getRange(i + 1, 11).setValue(now);
+
+        const userId = String(rows[i][0]);
+        const username = String(rows[i][1]);
+        const cloud = getUserCloudData(dSheet, userId);
+        return jsonResponse({
+          ok: true,
+          token: token,
+          user: { userId: userId, username: username, email: email },
+          cloud: cloud,
+          isNewUser: false
+        });
+      }
+    }
+
+    // Buat username unik dari nama/email Google
+    const taken = {};
+    for (let i = 1; i < rows.length; i++) {
+      taken[String(rows[i][1]).trim().toLowerCase()] = true;
+    }
+    let baseUser = displayName.toLowerCase().replace(/[^a-z0-9_]/g, '').slice(0, 16);
+    if (baseUser.length < 3) baseUser = email.split('@')[0].toLowerCase().replace(/[^a-z0-9_]/g, '').slice(0, 16);
+    if (baseUser.length < 3) baseUser = 'semeton';
+    let finalUsername = baseUser;
+    let suffix = 1;
+    while (taken[finalUsername]) {
+      finalUsername = baseUser + suffix;
+      suffix++;
+    }
+
+    const userId = 'ggl_' + googleSub.slice(0, 12);
+    uSheet.appendRow([userId, finalUsername, email, 'GOOGLE_OAUTH', 'google:' + googleSub, 'AKTIF', '', '', token, now, now]);
+
+    return jsonResponse({
+      ok: true,
+      token: token,
+      user: { userId: userId, username: finalUsername, email: email },
+      cloud: null,
+      isNewUser: true
+    });
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 function handleForgotPassword(body) {
