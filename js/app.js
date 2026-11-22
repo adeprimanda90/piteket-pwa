@@ -1453,16 +1453,16 @@ async function handleFeedbackSubmit(e) {
 
 
 // ======================= MENU INFO (TENTANG, VERSI, TUTORIAL GIF) ============
-const APP_VERSION = 'v1.5.1';
+const APP_VERSION = 'v1.5.2';
 const CHANGELOG_ENTRIES = [
   {
-    version: 'v1.5.1 (Saat Ini)',
+    version: 'v1.5.2 (Saat Ini)',
     date: '22 November 2026',
     title: 'Menu Info, Tutorial GIF Lengkap & Pencarian Pintar Hybrid (AI)',
     items: [
       'Menambahkan menu Info di pojok kanan atas berisi profil kolaborasi Semeton Bali & Gemini, riwayat versi, serta 4 tutorial animasi GIF.',
       'Menghadirkan Pencarian Pintar lintas seluruh data (Tri Kona, Kalender Bali, Ceklis, Dresta 10 Wilayah, Dewasa Ayu, Glosarium) yang memahami maksud pertanyaan secara offline.',
-      'Menambahkan tombol opsional "Tanya Piteket AI" bertenaga Gemini API melalui Google Apps Script untuk pertanyaan bebas yang tetap merujuk isi Piteket.'
+      'Menambahkan tombol opsional "Tanya Piteket AI" bertenaga Gemini API melalui Google Apps Script dengan kunci ketat anti-halusinasi agar hanya merujuk data kalender & materi Piteket serta jujur terhadap batas perhitungan Wariga personal.'
     ]
   },
   {
@@ -1768,6 +1768,7 @@ async function handleAskPiteketAi() {
       const safeHtml = String(res.answer)
         .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
         .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*([^\*\n]+?)\*/g, '<em>$1</em>')
         .replace(/\n/g, '<br/>');
       slot.innerHTML = `
         <div class="smart-ai-box">

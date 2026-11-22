@@ -161,11 +161,12 @@ export function runSmartSearch(rawQuery, dataset) {
       const nextOton = oton.upcoming && oton.upcoming[0] ? oton.upcoming[0] : null;
       birthContext = {
         iso: mentionedIso,
-        wewaran: `${bInfo.saptaWara.name} ${bInfo.pancaWara.name}`,
-        wuku: bInfo.wuku.name,
-        ingkel: bInfo.ingkel.name,
+        indoDate: bInfo.indoDate || mentionedIso,
+        wewaran: `${bInfo.saptaWara} ${bInfo.pancaWara}`,
+        wuku: bInfo.wuku,
+        ingkel: bInfo.ingkel,
         urip: bInfo.urip,
-        sasih: bInfo.sasih.name,
+        sasih: bInfo.sasih,
         sakaYear: bInfo.sakaYear,
         nextOton: nextOton ? `${nextOton.indoDate} (${nextOton.daysUntil} hari lagi)` : ''
       };
@@ -206,8 +207,8 @@ export function runSmartSearch(rawQuery, dataset) {
       instantCards.push({
         kind: 'calendar',
         badge: '📅 Kalender Bali Hari Ini',
-        title: `${todayInfo.saptaWara.name} ${todayInfo.pancaWara.name} · Wuku ${todayInfo.wuku.name}`,
-        summary: `Sasih ${todayInfo.sasih.name} (${todayInfo.penanggalPangelongLabel}) · Tahun Saka ${todayInfo.sakaYear} · Urip ${todayInfo.urip}`,
+        title: `${todayInfo.saptaWara} ${todayInfo.pancaWara} · Wuku ${todayInfo.wuku}`,
+        summary: `${todayInfo.sasih} (${todayInfo.penanggal}) · Tahun Saka ${todayInfo.sakaYear} · Urip ${todayInfo.urip}`,
         actionType: 'open-date',
         targetIso: todayIso,
         actionLabel: 'Buka Detail 10 Wewaran'
@@ -226,7 +227,10 @@ export function runSmartSearch(rawQuery, dataset) {
     const allGood = [
       ...findGoodDaysInMonth(m1.days || m1, matchedCat.cat),
       ...findGoodDaysInMonth(m2.days || m2, matchedCat.cat)
-    ].filter((d) => (d.iso || (d.day && d.day.iso) || '') >= todayIso);
+    ].filter((item) => {
+      const d = item.dayInfo || item.day || item;
+      return (d.isoDate || d.iso || '') >= todayIso;
+    });
     const goodDays = allGood.slice(0, 4);
     if (goodDays.length) {
       instantCards.push({
@@ -234,10 +238,10 @@ export function runSmartSearch(rawQuery, dataset) {
         badge: '✨ Pencari Hari Baik Terdekat',
         title: `Rekomendasi Dewasa Ayu: ${matchedCat.label}`,
         summary: goodDays.map((item) => {
-          const d = item.day || item;
-          const names = (item.matchingAyu || item.matches || []).map((x) => (typeof x === 'string' ? x : x.name)).slice(0, 2).join(', ');
-          const wew = d.saptaWara && d.saptaWara.name ? `${d.saptaWara.name} ${d.pancaWara.name}` : `${d.saptaWara || ''} ${d.pancaWara || ''}`.trim();
-          return `${d.indoDate || d.iso} (${wew}${names ? ': ' + names : ''})`;
+          const d = item.dayInfo || item.day || item;
+          const names = (item.matchingAyu || []).map((x) => x.name).slice(0, 2).join(', ');
+          const wew = `${d.saptaWara || ''} ${d.pancaWara || ''}`.trim();
+          return `${d.indoDate || d.isoDate} (${wew}${names ? ': ' + names : ''})`;
         }).join(' • '),
         actionType: 'open-finder',
         finderCat: matchedCat.cat,
