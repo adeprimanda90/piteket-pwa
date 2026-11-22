@@ -1,19 +1,18 @@
-const CACHE_NAME = 'piteket-pwa-v3';
+const CACHE_NAME = 'piteket-pwa-v4';
 const CORE_ASSETS = [
-  './',
-  './index.html',
-  './manifest.json',
-  './css/styles.css',
-  './js/config.js',
-  './js/calendar-engine.js',
-  './js/app.js',
-  './icons/icon.svg',
-  './data/utpatti.json',
-  './data/sthiti.json',
-  './data/pralina.json',
-  './data/dewasa-ayu.json',
-  './data/glosarium-aksara.json',
-  './data/catatan-dresta.json'
+  '/',
+  '/manifest.json',
+  '/css/styles.css',
+  '/js/config.js',
+  '/js/calendar-engine.js',
+  '/js/app.js',
+  '/icons/icon.svg',
+  '/data/utpatti.json',
+  '/data/sthiti.json',
+  '/data/pralina.json',
+  '/data/dewasa-ayu.json',
+  '/data/glosarium-aksara.json',
+  '/data/catatan-dresta.json'
 ];
 
 self.addEventListener('install', (event) => {
@@ -34,11 +33,19 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
+
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request).catch(() => caches.match('/'))
+    );
+    return;
+  }
+
   event.respondWith(
     caches.match(event.request).then((cached) => {
       const networkFetch = fetch(event.request)
         .then((res) => {
-          if (res && res.status === 200 && res.type === 'basic') {
+          if (res && res.status === 200 && res.type === 'basic' && !res.redirected) {
             const copy = res.clone();
             caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
           }
