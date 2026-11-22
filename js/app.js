@@ -1453,10 +1453,10 @@ async function handleFeedbackSubmit(e) {
 
 
 // ======================= MENU INFO (TENTANG, VERSI, TUTORIAL GIF) ============
-const APP_VERSION = 'v1.5';
+const APP_VERSION = 'v1.5.1';
 const CHANGELOG_ENTRIES = [
   {
-    version: 'v1.5 (Saat Ini)',
+    version: 'v1.5.1 (Saat Ini)',
     date: '22 November 2026',
     title: 'Menu Info, Tutorial GIF Lengkap & Pencarian Pintar Hybrid (AI)',
     items: [

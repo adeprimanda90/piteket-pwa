@@ -684,6 +684,41 @@ function kirimPengingatOtonanHarian() {
 }
 
 // ======================= 5. TANYA PITEKET AI (GEMINI FREE TIER) ==============
+function discoverGeminiTextModels(apiKey) {
+  try {
+    const cache = CacheService.getScriptCache();
+    const cached = cache.get('PITEKET_GEMINI_MODELS');
+    if (cached) return JSON.parse(cached);
+
+    const res = UrlFetchApp.fetch(
+      'https://generativelanguage.googleapis.com/v1beta/models?key=' + encodeURIComponent(apiKey),
+      { muteHttpExceptions: true }
+    );
+    if (res.getResponseCode() !== 200) return [];
+    const data = JSON.parse(res.getContentText());
+    const models = (data.models || [])
+      .filter((m) => Array.isArray(m.supportedGenerationMethods) && m.supportedGenerationMethods.indexOf('generateContent') !== -1)
+      .map((m) => String(m.name || '').replace(/^models\//, ''))
+      .filter((name) => name.indexOf('gemini') === 0 && !/(embedding|tts|image|live|transcribe|robotics|audio)/i.test(name));
+
+    // Prioritaskan model cepat & gratis (hydrogen / flash-lite / flash)
+    models.sort((a, b) => {
+      const rank = (n) => {
+        if (n.indexOf('hydrogen') !== -1) return 1;
+        if (n.indexOf('flash-lite') !== -1) return 2;
+        if (n.indexOf('flash') !== -1) return 3;
+        return 4;
+      };
+      return rank(a) - rank(b);
+    });
+    const top = models.slice(0, 5);
+    if (top.length) cache.put('PITEKET_GEMINI_MODELS', JSON.stringify(top), 21600);
+    return top;
+  } catch (e) {
+    return [];
+  }
+}
+
 function handleAskAi(body) {
   const props = PropertiesService.getScriptProperties();
   const apiKey = String(props.getProperty('GEMINI_API_KEY') || '').trim();
@@ -695,34 +730,37 @@ function handleAskAi(body) {
     });
   }
 
-  const query = String(body.query || '').trim().slice(0, 400);
-  const contextText = String(body.contextText || '').trim().slice(0, 4200);
+  const query = String(body.query || '').trim().slice(0, 450);
+  const contextText = String(body.contextText || '').trim().slice(0, 4800);
   if (!query) return jsonResponse({ ok: false, error: 'Pertanyaan kosong.' });
 
   const configuredModel = String(props.getProperty('GEMINI_MODEL') || '').trim();
-  const modelsToTry = configuredModel
-    ? [configuredModel, 'gemini-2.5-flash', 'gemini-2.5-flash-lite']
-    : ['gemini-2.5-flash', 'gemini-2.5-flash-lite'];
+  const defaults = ['gemini-4-hydrogen', 'gemini-3.5-flash-lite', 'gemini-3.8-flash', 'gemini-2.5-flash'];
+  const tried = {};
+  const candidates = [];
+  if (configuredModel) candidates.push(configuredModel);
+  defaults.forEach((m) => { if (candidates.indexOf(m) === -1) candidates.push(m); });
 
   const promptText =
     'Kamu adalah asisten belajar ramah di aplikasi Piteket (Teman Belajar Hidup Orang Bali, dikembangkan bersama oleh Semeton Bali dan Gemini).\n' +
     'Aturan ketat:\n' +
-    '1. Jawab dalam Bahasa Indonesia yang hangat, singkat, terstruktur (3-5 kalimat atau poin ringkas), dan mudah dipahami keluarga Bali.\n' +
-    '2. HANYA rujuk data dari [DATA KALENDER] dan [MATERI PITEKET] di bawah. Jika tidak ada di materi, katakan jujur belum tercatat di Piteket dan sarankan menanyakan ke orang tua/panglingsir atau Jero Mangku.\n' +
-    '3. Akhiri dengan 1 kalimat singkat pengingat Desa Kala Patra serta arahkan tab/topik Piteket mana yang bisa dibuka.\n\n' +
+    '1. Jawab dalam Bahasa Indonesia yang hangat, singkat, terstruktur (3-6 kalimat atau poin ringkas), dan mudah dipahami keluarga Bali.\n' +
+    '2. Rujuk data dari [DATA KELAHIRAN / OTONAN], [DATA KALENDER / DEWASA AYU], dan [MATERI PITEKET] di bawah. Jika pertanyaan menyangkut hari baik untuk suatu kegiatan (misalnya membeli barang elektronik/kendaraan/usaha), sebutkan tanggal Dewasa Ayu terdekat dari data kalender di bawah yang cocok (termasuk Tumpek Landep bila relevan untuk barang logam/elektronik), serta weton/otonan pengguna bila ada.\n' +
+    '3. Jangan mengarang tanggal kalender Bali yang tidak ada di data. Jika sesuatu belum tercatat, katakan jujur dan sarankan bertanya kepada orang tua/panglingsir atau Jero Mangku.\n' +
+    '4. Akhiri dengan 1 kalimat singkat pengingat Desa Kala Patra serta arahkan tab Piteket yang relevan.\n\n' +
     contextText + '\n\n' +
     'PERTANYAAN PENGGUNA: ' + query;
 
-  let lastErr = 'Gagal menghubungi Gemini API.';
-  for (let m = 0; m < modelsToTry.length; m++) {
-    const model = modelsToTry[m];
+  function tryModel(model) {
+    if (tried[model]) return null;
+    tried[model] = true;
     const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':generateContent?key=' + encodeURIComponent(apiKey);
     const res = UrlFetchApp.fetch(url, {
       method: 'post',
       contentType: 'application/json',
       payload: JSON.stringify({
         contents: [{ parts: [{ text: promptText }] }],
-        generationConfig: { temperature: 0.3, maxOutputTokens: 450 }
+        generationConfig: { temperature: 0.3, maxOutputTokens: 550 }
       }),
       muteHttpExceptions: true
     });
@@ -732,14 +770,36 @@ function handleAskAi(body) {
       const answer = parsed && parsed.candidates && parsed.candidates[0] &&
         parsed.candidates[0].content && parsed.candidates[0].content.parts &&
         parsed.candidates[0].content.parts[0] && parsed.candidates[0].content.parts[0].text;
-      if (answer) {
-        return jsonResponse({ ok: true, answer: String(answer).trim(), model: model });
-      }
-    } else if (code === 429) {
-      lastErr = 'Kuota gratis Gemini API sedang padat sementara. Coba lagi sebentar lagi, atau gunakan hasil Pencarian Pintar Lokal di bawah.';
-    } else {
-      lastErr = 'Gemini API mengembalikan status ' + code + '.';
+      if (answer) return { ok: true, answer: String(answer).trim(), model: model };
+    }
+    let detail = '';
+    try {
+      const errObj = JSON.parse(res.getContentText());
+      detail = errObj && errObj.error && errObj.error.message ? errObj.error.message : '';
+    } catch (e) {}
+    return { ok: false, code: code, detail: detail };
+  }
+
+  let lastErr = 'Gagal menghubungi Gemini API.';
+  for (let i = 0; i < candidates.length; i++) {
+    const out = tryModel(candidates[i]);
+    if (out && out.ok) return jsonResponse(out);
+    if (out && out.code === 429) {
+      lastErr = 'Kuota gratis Gemini API sedang padat sementara. Coba sebentar lagi atau gunakan Pencarian Pintar Lokal di bawah.';
+    } else if (out && out.code === 400 || out && out.code === 403) {
+      return jsonResponse({ ok: false, error: 'Kunci GEMINI_API_KEY tidak valid atau belum diizinkan (' + out.code + '): ' + (out.detail || '') });
+    } else if (out) {
+      lastErr = 'Gemini API status ' + out.code + (out.detail ? ' (' + out.detail.slice(0, 120) + ')' : '');
     }
   }
+
+  // Fallback otomatis: ambil daftar model aktif langsung dari akun API Key pengguna
+  const discovered = discoverGeminiTextModels(apiKey);
+  for (let j = 0; j < discovered.length; j++) {
+    const out = tryModel(discovered[j]);
+    if (out && out.ok) return jsonResponse(out);
+    if (out && out.detail) lastErr = 'Gemini API status ' + out.code + ' (' + out.detail.slice(0, 120) + ')';
+  }
+
   return jsonResponse({ ok: false, error: lastErr });
 }

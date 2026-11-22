@@ -4,7 +4,7 @@
 // Panduan Tri Kona, Catatan Dresta, Dewasa Ayu, maupun Glosarium Aksara Bali.
 // ============================================================================
 
-import { getUpcomingRahinan, getBalineseCalendarInfo } from './calendar-engine.js';
+import { getUpcomingRahinan, getBalineseCalendarInfo, getMonthCalendar, calculateOtonan } from './calendar-engine.js';
 import { findGoodDaysInMonth } from './dewasa-engine.js';
 
 const STOP_WORDS = new Set([
@@ -18,7 +18,7 @@ const STOP_WORDS = new Set([
 
 // Peta sinonim & konsep budaya Bali <-> Bahasa Indonesia sehari-hari
 const CONCEPT_GROUPS = [
-  ['bayi', 'lahir', 'kelahiran', 'baru lahir', 'ari-ari', 'plasenta', 'kepus', 'pungsed', 'puser', 'pusar', 'utpatti', 'gedong', 'magedong', 'hamil', 'kehamilan', 'kandungan', 'ibu hamil'],
+  ['bayi', 'baru lahir', 'ari-ari', 'plasenta', 'kepus', 'pungsed', 'puser', 'pusar', 'utpatti', 'gedong', 'magedong', 'hamil', 'kehamilan', 'kandungan', 'ibu hamil'],
   ['3 bulan', 'tiga bulan', 'nelubulanin', 'nyambutin', 'telubulan', '105 hari', 'bayi'],
   ['otonan', 'oton', 'ulang tahun', 'wetu', 'kelahiran bali', '210 hari', 'pawukon', 'wuku', 'wewaran'],
   ['potong gigi', 'metatah', 'mepandes', 'mesangih', 'remaja', 'dewasa', 'sad ripu'],
@@ -53,7 +53,7 @@ const RAHINAN_KEYWORDS = [
 ];
 
 const GOOD_DAY_CATEGORIES = [
-  { cat: 'usaha', label: 'Usaha, Dagang & Memulai Kerja', patterns: ['usaha', 'dagang', 'bisnis', 'toko', 'warung', 'kerja', 'buka'] },
+  { cat: 'usaha', label: 'Usaha, Dagang & Membeli Barang/Aset', patterns: ['usaha', 'dagang', 'bisnis', 'toko', 'warung', 'kerja', 'buka', 'beli', 'membeli', 'elektronik', 'kendaraan', 'motor', 'mobil', 'laptop', 'hp'] },
   { cat: 'bangunan', label: 'Membangun / Pindah Rumah & Melaspas', patterns: ['rumah', 'bangun', 'membangun', 'pindah', 'melaspas', 'tanah', 'pekarangan'] },
   { cat: 'upacara', label: 'Upacara / Dewa & Manusa Yadnya', patterns: ['upacara', 'yadnya', 'nikah', 'pawiwahan', 'menikah', 'potong gigi', 'metatah', 'otonan', 'nelubulanin', 'sembahyang'] },
   { cat: 'pertanian', label: 'Menanam & Pertanian', patterns: ['tanam', 'menanam', 'kebun', 'sawah', 'tani', 'pertanian', 'pohon'] }
@@ -106,6 +106,31 @@ function scoreText(haystack, title, queryInfo, bonus = 0) {
   return score;
 }
 
+
+const INDO_MONTH_MAP = {
+  januari: 1, jan: 1, februari: 2, feb: 2, pebruari: 2, maret: 3, mar: 3,
+  april: 4, apr: 4, mei: 5, juni: 6, jun: 6, juli: 7, jul: 7,
+  agustus: 8, agu: 8, agt: 8, september: 9, sep: 9, sept: 9,
+  oktober: 10, okt: 10, november: 11, nov: 11, nopember: 11, desember: 12, des: 12
+};
+
+function extractMentionedDateIso(normText) {
+  // Format: "29 desember 1990"
+  const m1 = normText.match(/\b(\d{1,2})\s+(januari|jan|februari|feb|pebruari|maret|mar|april|apr|mei|juni|jun|juli|jul|agustus|agu|agt|september|sep|sept|oktober|okt|november|nov|nopember|desember|des)\s+(19\d{2}|20\d{2})\b/);
+  if (m1) {
+    const d = Number(m1[1]), mo = INDO_MONTH_MAP[m1[2]], y = Number(m1[3]);
+    if (d >= 1 && d <= 31 && mo >= 1 && mo <= 12) {
+      return `${y}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    }
+  }
+  // Format: "1990-12-29"
+  const m2 = normText.match(/\b(19\d{2}|20\d{2})-(\d{1,2})-(\d{1,2})\b/);
+  if (m2) {
+    return `${m2[1]}-${String(Number(m2[2])).padStart(2, '0')}-${String(Number(m2[3])).padStart(2, '0')}`;
+  }
+  return null;
+}
+
 export function runSmartSearch(rawQuery, dataset) {
   const query = String(rawQuery || '').trim();
   const queryInfo = expandQueryTokens(query);
@@ -125,6 +150,35 @@ export function runSmartSearch(rawQuery, dataset) {
   } = dataset;
 
   const instantCards = [];
+  let birthContext = null;
+
+  // 0. Intent: Tanggal Lahir / Tanggal Spesifik disebut dalam pertanyaan
+  const mentionedIso = extractMentionedDateIso(queryInfo.norm);
+  if (mentionedIso) {
+    try {
+      const bInfo = getBalineseCalendarInfo(mentionedIso);
+      const oton = calculateOtonan(mentionedIso, todayIso, 2);
+      const nextOton = oton.upcoming && oton.upcoming[0] ? oton.upcoming[0] : null;
+      birthContext = {
+        iso: mentionedIso,
+        wewaran: `${bInfo.saptaWara.name} ${bInfo.pancaWara.name}`,
+        wuku: bInfo.wuku.name,
+        ingkel: bInfo.ingkel.name,
+        urip: bInfo.urip,
+        sasih: bInfo.sasih.name,
+        sakaYear: bInfo.sakaYear,
+        nextOton: nextOton ? `${nextOton.indoDate} (${nextOton.daysUntil} hari lagi)` : ''
+      };
+      instantCards.push({
+        kind: 'birth-info',
+        badge: '🎂 Wewaran & Wuku Kelahiran',
+        title: `Kelahiran ${mentionedIso}: ${birthContext.wewaran} · Wuku ${birthContext.wuku}`,
+        summary: `Urip ${birthContext.urip} · Ingkel ${birthContext.ingkel} · Sasih ${birthContext.sasih} (Saka ${birthContext.sakaYear})${birthContext.nextOton ? ` · Otonan terdekat: ${birthContext.nextOton}` : ''}`,
+        actionType: 'open-otonan',
+        actionLabel: 'Buka Kalkulator & Pengingat Otonan'
+      });
+    } catch {}
+  }
 
   // 1. Intent: Pertanyaan Kalender / Kapan Rahinan / Hari Ini
   const asksTime = /\b(kapan|tanggal|berapa hari|terdekat|berikutnya|bulan ini|tahun ini|tahun depan|hari ini)\b/.test(queryInfo.norm);
@@ -165,13 +219,26 @@ export function runSmartSearch(rawQuery, dataset) {
   const asksGoodDay = /\b(hari baik|dewasa ayu|dewasa|cari hari|tanggal baik|baik untuk)\b/.test(queryInfo.norm);
   if (asksGoodDay) {
     const matchedCat = GOOD_DAY_CATEGORIES.find((c) => c.patterns.some((p) => queryInfo.norm.includes(p))) || GOOD_DAY_CATEGORIES[0];
-    const goodDays = findGoodDaysInMonth(calYear, calMonth, matchedCat.cat).slice(0, 3);
+    const nextY = calMonth === 11 ? calYear + 1 : calYear;
+    const nextM = (calMonth + 1) % 12;
+    const m1 = getMonthCalendar(calYear, calMonth);
+    const m2 = getMonthCalendar(nextY, nextM);
+    const allGood = [
+      ...findGoodDaysInMonth(m1.days || m1, matchedCat.cat),
+      ...findGoodDaysInMonth(m2.days || m2, matchedCat.cat)
+    ].filter((d) => (d.iso || (d.day && d.day.iso) || '') >= todayIso);
+    const goodDays = allGood.slice(0, 4);
     if (goodDays.length) {
       instantCards.push({
         kind: 'dewasa-finder',
-        badge: '✨ Pencari Hari Baik Bulan Ini',
+        badge: '✨ Pencari Hari Baik Terdekat',
         title: `Rekomendasi Dewasa Ayu: ${matchedCat.label}`,
-        summary: goodDays.map((d) => `${d.indoDate} (${d.saptaWara} ${d.pancaWara}: ${d.matches.slice(0, 2).join(', ')})`).join(' • '),
+        summary: goodDays.map((item) => {
+          const d = item.day || item;
+          const names = (item.matchingAyu || item.matches || []).map((x) => (typeof x === 'string' ? x : x.name)).slice(0, 2).join(', ');
+          const wew = d.saptaWara && d.saptaWara.name ? `${d.saptaWara.name} ${d.pancaWara.name}` : `${d.saptaWara || ''} ${d.pancaWara || ''}`.trim();
+          return `${d.indoDate || d.iso} (${wew}${names ? ': ' + names : ''})`;
+        }).join(' • '),
         actionType: 'open-finder',
         finderCat: matchedCat.cat,
         actionLabel: 'Buka Pencari Hari Baik'
@@ -300,6 +367,7 @@ export function runSmartSearch(rawQuery, dataset) {
 
   return {
     query,
+    birthContext,
     instantCards,
     results,
     totalMatches: results.length + instantCards.length
@@ -310,6 +378,12 @@ export function runSmartSearch(rawQuery, dataset) {
 export function buildAiContextPayload(searchOut, dataset) {
   const lines = [];
   lines.push(`Profil pengguna: Domisili ${dataset.domisili}, Asal Kawitan ${dataset.kawitan}. Tanggal hari ini: ${dataset.todayIso}.`);
+
+  if (searchOut && searchOut.birthContext) {
+    const b = searchOut.birthContext;
+    lines.push('\n[DATA KELAHIRAN / OTONAN PENGGUNA]');
+    lines.push(`- Tanggal lahir: ${b.iso} | Wewaran: ${b.wewaran} | Wuku: ${b.wuku} | Urip: ${b.urip} | Ingkel: ${b.ingkel} | Sasih: ${b.sasih} Saka ${b.sakaYear} | Otonan terdekat: ${b.nextOton}`);
+  }
 
   if (searchOut && searchOut.instantCards.length) {
     lines.push('\n[DATA KALENDER / HITUNGAN LANGSUNG]');
