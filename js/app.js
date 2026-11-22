@@ -947,7 +947,6 @@ function renderFase2CalendarTab(container) {
             <button type="button" class="btn btn-sm ${state.rahinanFilter === 'ALL' ? 'btn-primary' : 'btn-outline'}" data-rfilter="ALL">Semua</button>
             <button type="button" class="btn btn-sm ${state.rahinanFilter === 'MAJOR' ? 'btn-primary' : 'btn-outline'}" data-rfilter="MAJOR">Hari Raya & Tumpek</button>
             <button type="button" class="btn btn-sm ${state.rahinanFilter === 'LUNAR' ? 'btn-primary' : 'btn-outline'}" data-rfilter="LUNAR">Purnama & Tilem</button>
-            <button type="button" class="btn btn-sm btn-ics" id="export-rahinan-ics">📅 Ekspor .ics</button>
           </div>
         </div>
         <div class="rahinan-list">
@@ -1154,7 +1153,6 @@ function renderFase2CalendarTab(container) {
     });
   });
 
-  document.getElementById('export-rahinan-ics').onclick = exportRahinanIcs;
 
   document.getElementById('otonan-form').addEventListener('submit', (e) => {
     e.preventDefault();
@@ -1630,10 +1628,10 @@ async function handleFeedbackSubmit(e) {
 
 
 // ======================= MENU INFO (TENTANG, VERSI, TUTORIAL GIF) ============
-const APP_VERSION = 'v1.7';
+const APP_VERSION = 'v1.7.1';
 const CHANGELOG_ENTRIES = [
   {
-    version: 'v1.7 (Saat Ini)',
+    version: 'v1.7.1 (Saat Ini)',
     date: '22 November 2026',
     title: 'Aksi Pengingat Otomatis dari Pencarian/AI, Pilihan Odalan/Rahinan & Tombol Google Calendar Langsung',
     items: [
