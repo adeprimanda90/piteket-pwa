@@ -1389,9 +1389,12 @@ function renderContent() {
         </div>
         <div class="card-aksara aksara">${item.aksara_bali || ''}</div>
         <h3>${item.judul}</h3>
-        <p>${item.ringkasan}</p>
+        <div class="card-quick-brief">
+          <span class="quick-brief-label">⚡ Intisari Singkat</span>
+          <p>${item.ringkasan}</p>
+        </div>
         <div class="card-actions">
-          <button class="btn btn-primary" data-open-guide="${item.id}">Baca Panduan</button>
+          <button class="btn btn-primary" data-open-guide="${item.id}">Baca Artikel Lengkap</button>
           <button class="btn btn-outline" data-feedback-id="${item.id}" data-feedback-tab="${item.siklus_tri_kona}" data-feedback-title="${item.judul}">Beri Piteket</button>
         </div>
       </article>
@@ -1501,15 +1504,78 @@ function buildDrestaCard(label, regionName, topicId, fallbackText) {
   `;
 }
 
+
+function friendlySourceLabel(url, idx) {
+  try {
+    const u = new URL(url);
+    const h = u.hostname.replace(/^www\./, '');
+    if (h.includes('unhi.ac.id')) return 'UNHI Press / Repository';
+    if (h.includes('warmadewa.ac.id')) return 'Jurnal Univ. Warmadewa';
+    if (h.includes('parisada.or.id')) return 'PHDI Pusat (Dharmika)';
+    if (h.includes('jayapanguspress')) return 'Jayapangus Press (Jurnal Hindu)';
+    if (h.includes('iahn-gdepudja')) return 'Repository IAHN Gde Pudja';
+    if (h.includes('researchgate.net')) return 'ResearchGate (Jurnal Ilmiah)';
+    if (h.includes('neliti.com')) return 'Neliti (Teks Siwagama)';
+    if (h.includes('sthd-jateng')) return 'Jurnal Jawa Dwipa STHD';
+    if (h.includes('undana.ac.id')) return 'Jurnal Communio Undana';
+    if (h.includes('uinsa.ac.id')) return 'Digilib UIN Sunan Ampel';
+    if (h.includes('mahadewa.ac.id')) return 'Jurnal Univ. PGRI Mahadewa';
+    if (h.includes('rewangrencang')) return 'Jurnal Hukum JHLG';
+    if (h.includes('kemenagbadung')) return 'Kemenag Badung';
+    return `${h} (Sumber ${idx + 1})`;
+  } catch {
+    return `Sumber ${idx + 1}`;
+  }
+}
+
+function formatUpacaraWithTiers(rawText) {
+  const txt = String(rawText || '').trim();
+  if (!/\[(NISTA|MADYA|UTAMA)\]/i.test(txt)) {
+    return `<p>${txt}</p>`;
+  }
+  const parts = txt.split(/(?=\[(?:NISTA|MADYA|UTAMA)\]\s*:?)/i);
+  const intro = [];
+  const tiers = [];
+  parts.forEach((part) => {
+    const p = part.trim();
+    if (!p) return;
+    const m = p.match(/^\[(NISTA|MADYA|UTAMA)\]\s*:?\s*([\s\S]+)$/i);
+    if (m) {
+      tiers.push({ level: m[1].toUpperCase(), body: m[2].trim() });
+    } else {
+      intro.push(p);
+    }
+  });
+  const levelMeta = {
+    NISTA: { label: 'Nista (Sederhana / Alit)', cls: 'tier-nista' },
+    MADYA: { label: 'Madya (Menengah)', cls: 'tier-madya' },
+    UTAMA: { label: 'Utama (Lengkap / Ageng)', cls: 'tier-utama' }
+  };
+  return `
+    ${intro.length ? `<p style="margin-bottom:10px;">${intro.join('\n\n')}</p>` : ''}
+    <div class="tier-grid">
+      ${tiers.map((t) => {
+        const meta = levelMeta[t.level] || { label: t.level, cls: 'tier-madya' };
+        return `
+          <div class="tier-card ${meta.cls}">
+            <div class="tier-badge">${meta.label}</div>
+            <p>${t.body}</p>
+          </div>
+        `;
+      }).join('')}
+    </div>
+  `;
+}
+
 function openGuideModal(id) {
   const item = state.guides.find((g) => g.id === id);
   if (!item) return;
   const links = (item.sumber_referensi || '')
     .split('|')
     .map((u) => u.trim())
-    .filter(Boolean)
-    .map((u, i) => `<a href="${u}" target="_blank" rel="noopener">Sumber ${i + 1}</a>`)
-    .join(' · ');
+    .filter((u) => /^https?:\/\//i.test(u))
+    .map((u, i) => `<a class="source-chip" href="${u}" target="_blank" rel="noopener">📚 ${friendlySourceLabel(u, i)}</a>`)
+    .join(' ');
 
   const domFallback = (state.domisili === 'Denpasar' || state.domisili === 'Badung') ? item.catatan_denpasar_badung : '';
   const kawFallback = state.kawitan === 'Karangasem' ? item.catatan_kawitan_karangasem : '';
@@ -1517,22 +1583,26 @@ function openGuideModal(id) {
   document.getElementById('detail-title').textContent = item.judul;
   document.getElementById('detail-aksara').textContent = item.aksara_bali || '';
   document.getElementById('detail-body').innerHTML = `
-    <div class="card-meta" style="margin-bottom:14px;">
+    <div class="card-meta" style="margin-bottom:12px;">
       <span class="tag ${cycleClass(item.siklus_tri_kona)}">${item.siklus_tri_kona}</span>
       <span class="tag pill-yadnya">${item.panca_yadnya}</span>
       <span class="tag ${statusClass(item.status_verifikasi)}">${item.status_verifikasi}</span>
     </div>
+    <div class="quick-brief-modal-box">
+      <div class="quick-brief-modal-head">⚡ Ringkasan Cepat (Intisari 30 Detik)</div>
+      <p>${item.ringkasan}</p>
+    </div>
     <div class="layer-block">
-      <h4>1. Tattwa (Filosofi & Makna)</h4>
+      <h4>1. Tattwa (Filosofi &amp; Makna Mendalam)</h4>
       <p>${item.tattwa_filosofi}</p>
     </div>
     <div class="layer-block">
-      <h4>2. Susila & Etika Praktis</h4>
+      <h4>2. Susila &amp; Etika Praktis</h4>
       <p>${item.susila_etika_praktis}</p>
     </div>
     <div class="layer-block">
-      <h4>3. Upacara (Gambaran Umum)</h4>
-      <p>${item.upacara_gambaran_umum}</p>
+      <h4>3. Upacara &amp; Tingkatan Upakara (Nista · Madya · Utama)</h4>
+      ${formatUpacaraWithTiers(item.upacara_gambaran_umum)}
     </div>
     <div class="layer-block">
       <h4>4. Desa Kala Patra (Sesuai Profil Anda: Domisili ${state.domisili} · Kawitan ${state.kawitan})</h4>
@@ -1628,10 +1698,20 @@ async function handleFeedbackSubmit(e) {
 
 
 // ======================= MENU INFO (TENTANG, VERSI, TUTORIAL GIF) ============
-const APP_VERSION = 'v1.7.1';
+const APP_VERSION = 'v1.8';
 const CHANGELOG_ENTRIES = [
   {
-    version: 'v1.7.1 (Saat Ini)',
+    version: 'v1.8 (Saat Ini)',
+    date: '22 November 2026',
+    title: 'Pendalaman 21 Artikel Tri Kona, Kartu Intisari Cepat, Tingkatan Nista-Madya-Utama & Topik Banten Baru',
+    items: [
+      'Menampilkan kartu Ringkasan Cepat (Intisari 30 Detik) di bagian atas setiap kartu dan artikel lengkap agar mudah dipindai sebelum membaca detail.',
+      'Menampilkan kartu visual Tingkatan Nista, Madya, dan Utama secara terstruktur di setiap topik (termasuk Mebanten Sehari-hari, Jenis Banten Dasar, Kramaning Sembah, Piodalan, 6 Tumpek, dan Nyegara Gunung).',
+      'Memperluas seluruh artikel dengan bahasa umum yang inklusif serta tautan sumber rujukan ilmiah yang dapat diklik.'
+    ]
+  },
+  {
+    version: 'v1.7.1',
     date: '22 November 2026',
     title: 'Aksi Pengingat Otomatis dari Pencarian/AI, Pilihan Odalan/Rahinan & Tombol Google Calendar Langsung',
     items: [
