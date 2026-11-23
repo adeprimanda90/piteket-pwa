@@ -18,6 +18,13 @@ import { buildIcsContent, downloadIcsFile } from './ics-export.js';
 import { DEFAULT_CHECKLISTS } from './checklists.js';
 import { AuthApi, getSavedSession, saveSession, getGoogleClientId } from './auth-sync.js';
 import { runSmartSearch, buildAiContextPayload } from './smart-search.js';
+import {
+  formatInlineMd,
+  friendlySourceLabel,
+  renderRichArticleHtml,
+  formatUpacaraWithTiers,
+  formatElderGuide
+} from './article-renderer.js';
 
 const REGIONS = [
   'Denpasar',
@@ -1463,7 +1470,7 @@ function renderContent() {
         <h3>${item.judul}</h3>
         <div class="card-quick-brief">
           <span class="quick-brief-label">⚡ Intisari Singkat</span>
-          <p>${item.ringkasan}</p>
+          <p>${formatInlineMd(item.ringkasan)}</p>
         </div>
         <div class="card-actions">
           <button class="btn btn-primary" data-open-guide="${item.id}">Baca Artikel Lengkap</button>
@@ -1548,7 +1555,7 @@ function buildDrestaCard(label, regionName, topicId, fallbackText) {
       return `
       <div class="dresta-card">
         <strong>${label}: ${m.wilayah} (${m.soroh_atau_desa_khusus})</strong>
-        <p>${m.catatan_dresta}</p>
+        <p>${formatInlineMd(m.catatan_dresta)}</p>
         <div style="margin-top:6px;">
           <span class="tag pill-warn" style="font-size:0.72rem;">${m.status_verifikasi}</span>
           ${firstUrl ? `<br/><a class="dresta-source-link" href="${firstUrl}" target="_blank" rel="noopener">Sumber Jurnal / Literatur</a>` : ''}
@@ -1561,7 +1568,7 @@ function buildDrestaCard(label, regionName, topicId, fallbackText) {
     return `
       <div class="dresta-card">
         <strong>${label}: ${regionName}</strong>
-        <p>${fallbackText}</p>
+        <p>${formatInlineMd(fallbackText)}</p>
       </div>
     `;
   }
@@ -1577,68 +1584,6 @@ function buildDrestaCard(label, regionName, topicId, fallbackText) {
 }
 
 
-function friendlySourceLabel(url, idx) {
-  try {
-    const u = new URL(url);
-    const h = u.hostname.replace(/^www\./, '');
-    if (h.includes('unhi.ac.id')) return 'UNHI Press / Repository';
-    if (h.includes('warmadewa.ac.id')) return 'Jurnal Univ. Warmadewa';
-    if (h.includes('parisada.or.id')) return 'PHDI Pusat (Dharmika)';
-    if (h.includes('jayapanguspress')) return 'Jayapangus Press (Jurnal Hindu)';
-    if (h.includes('iahn-gdepudja')) return 'Repository IAHN Gde Pudja';
-    if (h.includes('researchgate.net')) return 'ResearchGate (Jurnal Ilmiah)';
-    if (h.includes('neliti.com')) return 'Neliti (Teks Siwagama)';
-    if (h.includes('sthd-jateng')) return 'Jurnal Jawa Dwipa STHD';
-    if (h.includes('undana.ac.id')) return 'Jurnal Communio Undana';
-    if (h.includes('uinsa.ac.id')) return 'Digilib UIN Sunan Ampel';
-    if (h.includes('mahadewa.ac.id')) return 'Jurnal Univ. PGRI Mahadewa';
-    if (h.includes('rewangrencang')) return 'Jurnal Hukum JHLG';
-    if (h.includes('kemenagbadung')) return 'Kemenag Badung';
-    return `${h} (Sumber ${idx + 1})`;
-  } catch {
-    return `Sumber ${idx + 1}`;
-  }
-}
-
-function formatUpacaraWithTiers(rawText) {
-  const txt = String(rawText || '').trim();
-  if (!/\[(NISTA|MADYA|UTAMA)\]/i.test(txt)) {
-    return `<p>${txt}</p>`;
-  }
-  const parts = txt.split(/(?=\[(?:NISTA|MADYA|UTAMA)\]\s*:?)/i);
-  const intro = [];
-  const tiers = [];
-  parts.forEach((part) => {
-    const p = part.trim();
-    if (!p) return;
-    const m = p.match(/^\[(NISTA|MADYA|UTAMA)\]\s*:?\s*([\s\S]+)$/i);
-    if (m) {
-      tiers.push({ level: m[1].toUpperCase(), body: m[2].trim() });
-    } else {
-      intro.push(p);
-    }
-  });
-  const levelMeta = {
-    NISTA: { label: 'Nista (Sederhana / Alit)', cls: 'tier-nista' },
-    MADYA: { label: 'Madya (Menengah)', cls: 'tier-madya' },
-    UTAMA: { label: 'Utama (Lengkap / Ageng)', cls: 'tier-utama' }
-  };
-  return `
-    ${intro.length ? `<p style="margin-bottom:10px;">${intro.join('\n\n')}</p>` : ''}
-    <div class="tier-grid">
-      ${tiers.map((t) => {
-        const meta = levelMeta[t.level] || { label: t.level, cls: 'tier-madya' };
-        return `
-          <div class="tier-card ${meta.cls}">
-            <div class="tier-badge">${meta.label}</div>
-            <p>${t.body}</p>
-          </div>
-        `;
-      }).join('')}
-    </div>
-  `;
-}
-
 function openGuideModal(id) {
   const item = state.guides.find((g) => g.id === id);
   if (!item) return;
@@ -1651,6 +1596,7 @@ function openGuideModal(id) {
 
   const domFallback = (state.domisili === 'Denpasar' || state.domisili === 'Badung') ? item.catatan_denpasar_badung : '';
   const kawFallback = state.kawitan === 'Karangasem' ? item.catatan_kawitan_karangasem : '';
+  const hasTerms = /\[ISTILAH\]/i.test(item.susila_etika_praktis || '');
 
   document.getElementById('detail-title').textContent = item.judul;
   document.getElementById('detail-aksara').textContent = item.aksara_bali || '';
@@ -1662,36 +1608,50 @@ function openGuideModal(id) {
     </div>
     <div class="quick-brief-modal-box">
       <div class="quick-brief-modal-head">⚡ Ringkasan Cepat (Intisari 30 Detik)</div>
-      <p>${item.ringkasan}</p>
+      <p>${formatInlineMd(item.ringkasan)}</p>
     </div>
-    <div class="layer-block">
-      <h4>1. Tattwa (Filosofi &amp; Makna Mendalam)</h4>
-      <p>${item.tattwa_filosofi}</p>
+    <nav class="art-jump-bar" aria-label="Navigasi bagian artikel">
+      <button type="button" class="art-jump-pill" data-jump-sec="sec-tattwa">1. Tattwa</button>
+      <button type="button" class="art-jump-pill" data-jump-sec="sec-susila">2. Susila${hasTerms ? ' &amp; Istilah' : ''}</button>
+      <button type="button" class="art-jump-pill" data-jump-sec="sec-upacara">3. Dudonan &amp; Nista–Utama</button>
+      <button type="button" class="art-jump-pill" data-jump-sec="sec-dresta">4. Dresta</button>
+      <button type="button" class="art-jump-pill" data-jump-sec="sec-tetua">5. Tanya Tetua</button>
+    </nav>
+    <div class="layer-block" id="sec-tattwa">
+      <h4>1. Tattwa (Filosofi &amp; Landasan Sastra)</h4>
+      ${renderRichArticleHtml(item.tattwa_filosofi)}
     </div>
-    <div class="layer-block">
-      <h4>2. Susila &amp; Etika Praktis</h4>
-      <p>${item.susila_etika_praktis}</p>
+    <div class="layer-block" id="sec-susila">
+      <h4>2. Susila, Etika Praktis${hasTerms ? ' &amp; Kamus Istilah' : ''}</h4>
+      ${renderRichArticleHtml(item.susila_etika_praktis)}
     </div>
-    <div class="layer-block">
-      <h4>3. Upacara &amp; Tingkatan Upakara (Nista · Madya · Utama)</h4>
+    <div class="layer-block" id="sec-upacara">
+      <h4>3. Urutan Upacara (Dudonan) &amp; Tingkatan (Nista · Madya · Utama)</h4>
       ${formatUpacaraWithTiers(item.upacara_gambaran_umum)}
     </div>
-    <div class="layer-block">
+    <div class="layer-block" id="sec-dresta">
       <h4>4. Desa Kala Patra (Sesuai Profil Anda: Domisili ${state.domisili} · Kawitan ${state.kawitan})</h4>
       <div class="dresta-grid">
         ${buildDrestaCard('Domisili', state.domisili, item.id, domFallback)}
         ${buildDrestaCard('Kawitan', state.kawitan, item.id, kawFallback)}
       </div>
     </div>
-    <div class="elder-box">
-      <strong>🙏 Tanyakan ke Orang Tua / Kelian Banjar / Jero Mangku:</strong>
-      <p style="margin:6px 0 0;white-space:pre-line;">${item.tanyakan_ke_tetua}</p>
+    <div class="elder-box" id="sec-tetua">
+      <strong>🙏 Panduan Bertanya ke Orang Tua / Kelian Banjar / Jero Mangku:</strong>
+      ${formatElderGuide(item.tanyakan_ke_tetua)}
     </div>
     <p style="font-size:0.82rem;color:#66584D;margin-top:12px;">Referensi: ${links || 'Catatan Keluarga'} · Diperbarui: ${item.terakhir_diperbarui}</p>
     <div style="margin-top:14px;">
       <button class="btn btn-primary" id="modal-feedback-trigger">Kirim Piteket / Koreksi untuk Topik Ini</button>
     </div>
   `;
+
+  document.querySelectorAll('[data-jump-sec]').forEach((btn) => {
+    btn.onclick = () => {
+      const target = document.getElementById(btn.dataset.jumpSec);
+      if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+  });
 
   document.getElementById('modal-feedback-trigger').onclick = () => {
     closeModal('detail-modal');
@@ -1704,7 +1664,11 @@ function openGuideModal(id) {
       openFeedbackModal(item.id, 'Catatan_Dresta', `${item.judul} — ${reg}`, reg);
     };
   });
-  document.getElementById('detail-modal').classList.add('open');
+
+  const modalEl = document.getElementById('detail-modal');
+  const modalBox = modalEl.querySelector('.modal-box');
+  if (modalBox) modalBox.scrollTop = 0;
+  modalEl.classList.add('open');
 }
 
 function openFeedbackModal(id, tab, title, preselectRegion) {
@@ -1770,10 +1734,20 @@ async function handleFeedbackSubmit(e) {
 
 
 // ======================= MENU INFO (TENTANG, VERSI, TUTORIAL GIF) ============
-const APP_VERSION = 'v1.9';
+const APP_VERSION = 'v2.0';
 const CHANGELOG_ENTRIES = [
   {
-    version: 'v1.9 (Saat Ini)',
+    version: 'v2.0 (Saat Ini)',
+    date: '23 November 2026',
+    title: 'Pembaca Artikel Mendalam (Jump-Bar, Kamus Istilah & Panduan Bertanya ke Tetua) + Batch 1 Utpatti',
+    items: [
+      'Menghadirkan pembaca artikel panjang yang terstruktur: navigasi cepat (sticky jump-bar), sub-judul, daftar poin kronologis (Dudonan), kartu Kamus Istilah Bali ([ISTILAH]), dan kotak "Apa yang Perlu Didengarkan" ([DENGARKAN]) saat berdialog dengan orang tua atau Jero Mangku.',
+      'Memperdalam seluruh 7 artikel Utpatti di Master Database (termasuk artikel fondasi baru Kanda Pat / Catur Sanak) agar membangun pemahaman utuh, bukan sekadar ringkasan singkat.',
+      'Menambahkan label sumber ilmiah ramah baca untuk rujukan Lontar, UNHI Press, PHDI, Mahadewa, dan RRI Denpasar.'
+    ]
+  },
+  {
+    version: 'v1.9',
     date: '22 November 2026',
     title: 'Kalender Libur Nasional & Cuti Bersama Indonesia (SKB 3 Menteri 2026–2027)',
     items: [
