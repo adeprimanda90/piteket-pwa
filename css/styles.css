@@ -331,7 +331,7 @@ nav.tabs {
 .modal-box {
   background: var(--surface);
   border-radius: 18px;
-  max-width: 720px;
+  max-width: 760px;
   width: 100%;
   max-height: 88vh;
   overflow-y: auto;
@@ -363,21 +363,26 @@ nav.tabs {
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: 12px;
-  padding: 14px 16px;
-  margin-bottom: 12px;
+  padding: 16px 18px;
+  margin-bottom: 14px;
+  scroll-margin-top: 56px;
 }
 
 .layer-block h4 {
-  margin: 0 0 6px;
-  font-size: 0.92rem;
+  margin: 0 0 10px;
+  font-size: 0.96rem;
   color: var(--primary);
 }
 
 .layer-block p {
-  margin: 0;
+  margin: 0 0 10px;
   font-size: 0.92rem;
   color: var(--ink);
-  white-space: pre-line;
+  line-height: 1.65;
+}
+
+.layer-block p:last-child {
+  margin-bottom: 0;
 }
 
 .dresta-grid {
@@ -405,8 +410,9 @@ nav.tabs {
   background: #FFF9EE;
   border: 1px solid #E7D2AC;
   border-radius: 12px;
-  padding: 14px 16px;
+  padding: 16px 18px;
   margin-top: 12px;
+  scroll-margin-top: 56px;
 }
 
 .form-group {
@@ -455,7 +461,6 @@ footer {
   border-top: 1px solid var(--border);
 }
 
-/* Profil Dresta Saya (Domisili + Kawitan Switcher) */
 .dresta-switcher {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -530,7 +535,6 @@ footer {
   text-decoration: underline;
 }
 
-/* ================= FASE 2: KALENDER BULANAN, RAHINAN & OTONAN ================= */
 .cal-head-actions {
   display: flex;
   gap: 8px;
@@ -919,7 +923,6 @@ footer {
   .mcal-weekdays { font-size: 0.68rem; }
 }
 
-/* ================= FASE 3: EKSPOR .ICS & CEKLIS PERSIAPAN ================= */
 .btn-ics {
   background: #1E4D6B;
   color: #FFF;
@@ -1047,7 +1050,6 @@ footer {
   font-size: 0.84rem;
 }
 
-/* ================= TAHAP A: MODE KLASIK CETAK BALI & 10 WEWARAN ================= */
 .mcal-toolbar {
   display: flex;
   justify-content: space-between;
@@ -1229,7 +1231,6 @@ footer {
 .dewasa-col-head.is-ayu { background: var(--ok-bg); color: var(--ok-ink); }
 .dewasa-col-head.is-ala { background: #FCEAE6; color: #8C3B2B; }
 
-/* ================= TAHAP B: AKUN PENGGUNA & PENGINGAT OTONAN ================= */
 .auth-bar {
   display: flex;
   align-items: center;
@@ -1375,7 +1376,6 @@ footer {
   accent-color: var(--primary);
 }
 
-/* Google Sign-In (Tahap B+) */
 .google-auth-wrap {
   margin-bottom: 14px;
 }
@@ -1412,7 +1412,6 @@ footer {
   background: var(--border);
 }
 
-/* v1.5: Menu Info (Pojok Kanan Atas), Changelog, Tutorial GIF & Smart Search Hybrid */
 .hero-actions {
   display: flex;
   align-items: center;
@@ -1783,7 +1782,6 @@ footer {
   padding: 6px 0;
 }
 
-/* v1.8: Quick Brief Card, Nista/Madya/Utama Tier Cards & Source Chips */
 .card-quick-brief {
   background: #FFF9EE;
   border-left: 3px solid #C89B3C;
@@ -1835,7 +1833,7 @@ footer {
   display: grid;
   grid-template-columns: 1fr;
   gap: 10px;
-  margin-top: 6px;
+  margin-top: 10px;
 }
 
 .tier-card {
@@ -1848,7 +1846,7 @@ footer {
 .tier-card p {
   margin: 4px 0 0;
   font-size: 0.88rem;
-  line-height: 1.5;
+  line-height: 1.55;
 }
 
 .tier-badge {
@@ -1969,4 +1967,133 @@ footer {
 }
 .month-holiday-chip .mh-day {
   font-weight: 800;
+}
+
+/* ======================= PEMBACA ARTIKEL MENDALAM (v2.0) ======================= */
+.art-jump-bar {
+  position: sticky;
+  top: -12px;
+  z-index: 5;
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(6px);
+  padding: 8px 0 10px;
+  margin: 0 0 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.art-jump-pill {
+  border: 1px solid var(--border);
+  background: var(--surface-warm);
+  color: var(--primary);
+  border-radius: 999px;
+  padding: 5px 11px;
+  font-family: inherit;
+  font-size: 0.76rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.art-jump-pill:hover {
+  background: var(--primary);
+  color: #FFF;
+  border-color: var(--primary);
+}
+
+.art-subhead {
+  margin: 14px 0 6px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--ink);
+  border-bottom: 1px dashed #E1D2BC;
+  padding-bottom: 4px;
+}
+
+.art-subhead:first-child {
+  margin-top: 2px;
+}
+
+.art-list {
+  margin: 6px 0 12px;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.art-list li {
+  font-size: 0.91rem;
+  line-height: 1.58;
+  color: var(--ink);
+}
+
+.term-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  margin: 8px 0 4px;
+}
+
+.term-card {
+  background: var(--surface);
+  border: 1px solid #DFD1BC;
+  border-left: 3px solid #1E4D6B;
+  border-radius: 9px;
+  padding: 9px 12px;
+  font-size: 0.87rem;
+  line-height: 1.52;
+  color: var(--ink);
+}
+
+.term-card-title {
+  display: inline-block;
+  font-weight: 700;
+  color: #1E4D6B;
+  margin-right: 4px;
+}
+
+.elder-qa-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.elder-qa-card {
+  background: var(--surface);
+  border: 1px solid #E7D2AC;
+  border-radius: 10px;
+  padding: 11px 13px;
+}
+
+.elder-q-text {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--ink);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.elder-listen-box {
+  margin-top: 8px;
+  padding: 8px 11px;
+  background: #EDF6F1;
+  border-left: 3px solid #2A7A4B;
+  border-radius: 7px;
+  font-size: 0.85rem;
+  line-height: 1.52;
+  color: #1E4D33;
+}
+
+.elder-listen-label {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #1F5C3A;
+  margin-bottom: 3px;
 }
